@@ -15,3 +15,20 @@ export const updateEnclosureApi = (id, payload) => {
 };
 
 export default api;
+
+
+export const updateParametersApi = (id, payload) => {
+    return api.put(`/enclosures/${id}/parameters`, payload);
+};
+
+export const getControlConfigApi = (id) => {
+    return api.get(`/enclosures/${id}/control-config`);
+};
+
+export const applyRecommendationApi = (id) => {
+    return api.post(`/recommendations/${id}/apply`);
+};
+
+export const rejectRecommendationApi = (id) => {
+    return api.post(`/recommendations/${id}/reject`);
+};

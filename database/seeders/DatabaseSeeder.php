@@ -50,6 +50,7 @@ class DatabaseSeeder extends Seeder
             'humidity_max'             => 95.00,  // Biological range: batas atas
             'misting_bottom_threshold' => 82.00,  // Misting ON ketika RH turun ke sini
             'misting_top_threshold'    => 92.00,  // Misting OFF ketika RH naik ke sini
+            'misting_duration_seconds' => 10,     // Durasi misting yang dieksekusi ESP32
             'is_misting_auto'          => true,
         ]);
 
@@ -68,6 +69,7 @@ class DatabaseSeeder extends Seeder
             'humidity_max'             => 90.00,
             'misting_bottom_threshold' => 78.00,
             'misting_top_threshold'    => 88.00,
+            'misting_duration_seconds' => 8,
             'is_misting_auto'          => true,
         ]);
         // ─── Generate Dummy Telemetry (Optional) ────────────

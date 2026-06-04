@@ -72,8 +72,48 @@ const API = {
      * GET /api/enclosures/{id}/stability
      * Data untuk halaman Stabilitas.
      */
-    async getStability(enclosureId) {
-        return this.request(`/enclosures/${enclosureId}/stability`);
+    async getStability(enclosureId, period = '4w') {
+        return this.request(`/enclosures/${enclosureId}/stability?period=${period}`);
+    },
+
+
+
+    /**
+     * GET /api/enclosures/{id}/control-config
+     * Parameter yang akan dipakai ESP32 untuk rule-based misting.
+     */
+    async getControlConfig(enclosureId) {
+        return this.request(`/enclosures/${enclosureId}/control-config`);
+    },
+
+    /**
+     * PUT /api/enclosures/{id}/parameters
+     * Update bottom humidity, top humidity, dan durasi misting.
+     */
+    async updateParameters(enclosureId, data) {
+        return this.request(`/enclosures/${enclosureId}/parameters`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    },
+
+    /**
+     * POST /api/recommendations/{id}/apply
+     * Apply rekomendasi AI sebagai DSS action.
+     */
+    async applyRecommendation(recommendationId) {
+        return this.request(`/recommendations/${recommendationId}/apply`, {
+            method: 'POST'
+        });
+    },
+
+    /**
+     * POST /api/recommendations/{id}/reject
+     */
+    async rejectRecommendation(recommendationId) {
+        return this.request(`/recommendations/${recommendationId}/reject`, {
+            method: 'POST'
+        });
     },
 
     // --- Settings Endpoints ---

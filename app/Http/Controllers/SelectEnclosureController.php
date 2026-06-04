@@ -20,9 +20,20 @@ class SelectEnclosureController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'enclosure_id' => 'required|exists:enclosures,id',
-            'name' => 'required|string|max:255',
-        ]);
+    'bottom_humidity' => 'required|integer|min:0|max:100',
+    'top_humidity' => 'required|integer|min:0|max:100',
+    'misting_duration' => 'required|integer|min:1',
+]);
+
+$config->bottom_humidity = (int) $request->bottom_humidity;
+$config->top_humidity = (int) $request->top_humidity;
+$config->misting_duration = (int) $request->misting_duration;
+$config->save();
+
+        // $request->validate([
+        //     'enclosure_id' => 'required|exists:enclosures,id',
+        //     'name' => 'required|string|max:255',
+        // ]);
 
         // Cari enclosure
         $enclosure = Enclosure::findOrFail($request->enclosure_id);

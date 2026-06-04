@@ -16,6 +16,7 @@ class EnclosureParameter extends Model
         'humidity_max',
         'misting_bottom_threshold',
         'misting_top_threshold',
+        'misting_duration_seconds',
         'is_misting_auto',
     ];
 
@@ -24,6 +25,7 @@ class EnclosureParameter extends Model
         'humidity_max' => 'decimal:2',
         'misting_bottom_threshold' => 'decimal:2',
         'misting_top_threshold' => 'decimal:2',
+        'misting_duration_seconds' => 'integer',
         'is_misting_auto' => 'boolean',
     ];
 

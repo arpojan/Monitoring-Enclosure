@@ -18,14 +18,18 @@ class SensorLog extends Model
         'temperature',
         'humidity',
         'misting_status',
+        'misting_duration_executed',
         'logged_at',
+        'device_timestamp',
     ];
 
     protected $casts = [
         'temperature' => 'decimal:2',
         'humidity' => 'decimal:2',
         'misting_status' => 'boolean',
+        'misting_duration_executed' => 'integer',
         'logged_at' => 'datetime',
+        'device_timestamp' => 'datetime',
     ];
 
     public function enclosure(): BelongsTo

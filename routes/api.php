@@ -3,28 +3,40 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TelemetryController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\EnclosureController;
+use App\Http\Controllers\Api\RecommendationController;
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
 |
-| Routes for IoT telemetry and dashboard data APIs.
-| All routes are prefixed with /api automatically.
+| Web/Laravel berperan sebagai monitoring dashboard, configuration panel,
+| dan AI-based DSS. ESP32 tetap menjadi rule-based misting executor.
 |
 */
 
 // ─── IoT Telemetry (ESP32 / Simulator) ──────────────────────
 Route::post('/telemetry', [TelemetryController::class, 'store']);
 
-// ─── Dashboard Data (Frontend PWA) ──────────────────────────
+// ─── AI Recommendation Decision Actions ─────────────────────
+Route::post('/recommendations/{id}/apply', [RecommendationController::class, 'apply']);
+Route::post('/recommendations/{id}/reject', [RecommendationController::class, 'reject']);
+
+// ─── Dashboard Data + Enclosure Control Config ──────────────
 Route::prefix('enclosures/{id}')->group(function () {
-    Route::get('/latest',    [DashboardController::class, 'latest']);
-    Route::get('/history',   [DashboardController::class, 'history']);
+    Route::get('/latest', [DashboardController::class, 'latest']);
+    Route::get('/history', [DashboardController::class, 'history']);
     Route::get('/dashboard', [DashboardController::class, 'dashboard']);
     Route::get('/analytics', [DashboardController::class, 'analytics']);
     Route::get('/stability', [DashboardController::class, 'stability']);
-    
-    // Update enclosure (name, settings, etc)
-    Route::put('/', [\App\Http\Controllers\Api\EnclosureController::class, 'update']);
+
+    // ESP32 mengambil parameter rule-based dari web
+    Route::get('/control-config', [EnclosureController::class, 'controlConfig']);
+
+    // Web mengubah parameter bottom/top/duration untuk ESP32
+    Route::put('/parameters', [EnclosureController::class, 'updateParameters']);
+
+    // Update identitas enclosure
+    Route::put('/', [EnclosureController::class, 'update']);
 });

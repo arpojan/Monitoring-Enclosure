@@ -52,6 +52,7 @@ class DashboardController extends Controller
                     'temperature'    => $latestLog->temperature,
                     'humidity'       => $latestLog->humidity,
                     'misting_status' => $latestLog->misting_status,
+                    'misting_duration_executed' => $latestLog->misting_duration_executed,
                     'logged_at'      => $latestLog->logged_at->toIso8601String(),
                 ] : null,
                 'trend' => [
@@ -63,6 +64,7 @@ class DashboardController extends Controller
                     'humidity_max'             => $enclosure->parameters->humidity_max,
                     'misting_bottom_threshold' => $enclosure->parameters->misting_bottom_threshold,
                     'misting_top_threshold'    => $enclosure->parameters->misting_top_threshold,
+                    'misting_duration_seconds' => $enclosure->parameters->misting_duration_seconds,
                     'is_misting_auto'          => $enclosure->parameters->is_misting_auto,
                 ] : null,
             ],
@@ -84,13 +86,14 @@ class DashboardController extends Controller
         $config = match ($period) {
             '7d'    => ['since' => now()->subDays(7),  'label' => '7 hari'],
             '30d'   => ['since' => now()->subDays(30), 'label' => '30 hari'],
+            '90d'   => ['since' => now()->subDays(90), 'label' => '90 hari'],
             default => ['since' => now()->subHours(24),'label' => '24 jam'],
         };
 
         $logs = $enclosure->sensorLogs()
             ->where('logged_at', '>=', $config['since'])
             ->orderBy('logged_at', 'asc')
-            ->get(['temperature', 'humidity', 'misting_status', 'logged_at']);
+            ->get(['temperature', 'humidity', 'misting_status', 'misting_duration_executed', 'logged_at']);
 
         // Format untuk chart — array of objects dengan timestamp clean
         $chartData = $logs->map(fn ($log) => [
@@ -99,6 +102,7 @@ class DashboardController extends Controller
             'temperature'    => (float) $log->temperature,
             'humidity'       => (float) $log->humidity,
             'misting_status' => (bool)  $log->misting_status,
+            'misting_duration_executed' => $log->misting_duration_executed,
         ]);
 
         return response()->json([
@@ -174,13 +178,14 @@ class DashboardController extends Controller
         $recentLogs = $enclosure->sensorLogs()
             ->where('logged_at', '>=', now()->subHour())
             ->orderBy('logged_at', 'asc')
-            ->get(['temperature', 'humidity', 'misting_status', 'logged_at']);
+            ->get(['temperature', 'humidity', 'misting_status', 'misting_duration_executed', 'logged_at']);
 
         $chartData = $recentLogs->map(fn ($log) => [
             'time'        => $log->logged_at->format('H:i'),
             'temperature' => (float) $log->temperature,
             'humidity'    => (float) $log->humidity,
             'misting'     => (bool) $log->misting_status,
+            'misting_duration_executed' => $log->misting_duration_executed,
         ]);
 
         $events = $enclosure->eventTimelines()
@@ -208,6 +213,7 @@ class DashboardController extends Controller
                     'temperature'    => $latestLog->temperature,
                     'humidity'       => $latestLog->humidity,
                     'misting_status' => $latestLog->misting_status,
+                    'misting_duration_executed' => $latestLog->misting_duration_executed,
                     'logged_at'      => $latestLog->logged_at->toIso8601String(),
                 ] : null,
                 'trend' => [
@@ -237,6 +243,7 @@ class DashboardController extends Controller
                     'humidity_max'             => $enclosure->parameters->humidity_max,
                     'misting_bottom_threshold' => $enclosure->parameters->misting_bottom_threshold,
                     'misting_top_threshold'    => $enclosure->parameters->misting_top_threshold,
+                    'misting_duration_seconds' => $enclosure->parameters->misting_duration_seconds,
                     'is_misting_auto'          => $enclosure->parameters->is_misting_auto,
                 ] : null,
                 'chart' => $chartData->values(),
@@ -259,6 +266,7 @@ class DashboardController extends Controller
         $since = match ($period) {
             '7d'    => now()->subDays(7),
             '30d'   => now()->subDays(30),
+            '90d'   => now()->subDays(90),
             default => now()->subHours(24),
         };
 
@@ -303,6 +311,7 @@ class DashboardController extends Controller
             'temperature' => (float) $log->temperature,
             'humidity'    => (float) $log->humidity,
             'misting'     => (bool) $log->misting_status,
+            'misting_duration_executed' => $log->misting_duration_executed,
         ]);
 
         // ── Distribusi Kelembapan (7 bins) ──
@@ -387,7 +396,7 @@ class DashboardController extends Controller
      * Data untuk halaman Stabilitas.
      * Menampilkan: skor terbaru, komponen, riwayat, dan computed stats.
      */
-    public function stability(int $id): JsonResponse
+    public function stability(Request $request, int $id): JsonResponse
     {
         $enclosure = Enclosure::with('parameters')->findOrFail($id);
         $params    = $enclosure->parameters;
@@ -491,9 +500,12 @@ class DashboardController extends Controller
             else $computedStatus = 'Kritis';
         }
 
-        // ── Stability History (last 30 days) ──
+        $period = $request->query('period', '4w'); // '4w' or '12w'
+        $days = $period === '12w' ? 84 : 30; // 12 weeks = 84 days, 4 weeks = 30 days
+
+        // ── Stability History ──
         $history = $enclosure->stabilityScores()
-            ->where('analyzed_date', '>=', now()->subDays(30))
+            ->where('analyzed_date', '>=', now()->subDays($days))
             ->orderBy('analyzed_date', 'asc')
             ->get()
             ->map(fn ($s) => [

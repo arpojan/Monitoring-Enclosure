@@ -122,6 +122,72 @@
                         </p>
                     </div>
 
+                    <!-- Parameter Kontrol Misting -->
+                    <div class="control-config-card glass-card" style="margin-bottom: 20px; padding: 20px;">
+                        <div class="card-header" style="margin-bottom: 15px;">
+                            <h2><i class="ph ph-sliders-horizontal text-teal"></i> Parameter Kontrol Misting</h2>
+                        </div>
+                        <form id="control-parameters-form" class="control-parameters-form">
+                            <div>
+                                <label style="display:block; margin-bottom:6px; color:var(--text-secondary); font-size:0.9rem; font-weight:500;">Kelembapan Minimum (%)</label>
+                                <div class="input-group" style="margin-bottom: 0;">
+                                    <i class="ph ph-caret-double-down" style="color: var(--accent-teal);"></i>
+                                    <input
+                                        type="number"
+                                        name="bottom_humidity"
+                                        id="param-bottom-humidity"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        placeholder="Contoh: 40"
+                                        value="{{ old('bottom_humidity', (int) round($config->bottom_humidity ?? 0)) }}"
+                                    >
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label style="display:block; margin-bottom:6px; color:var(--text-secondary); font-size:0.9rem; font-weight:500;">Kelembapan Maksimum (%)</label>
+                                <div class="input-group" style="margin-bottom: 0;">
+                                    <i class="ph ph-caret-double-up" style="color: var(--accent-teal);"></i>
+                                    <input
+                                        type="number"
+                                        name="top_humidity"
+                                        id="param-top-humidity"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        placeholder="Contoh: 90"
+                                        value="{{ old('top_humidity', (int) round($config->top_humidity ?? 0)) }}"
+                                    >
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label style="display:block; margin-bottom:6px; color:var(--text-secondary); font-size:0.9rem; font-weight:500;">Durasi Misting (detik)</label>
+                                <div class="input-group" style="margin-bottom: 0;">
+                                    <i class="ph ph-timer" style="color: var(--accent-teal);"></i>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="300"
+                                        step="1"
+                                        id="param-misting-duration"
+                                        placeholder="Contoh: 10"
+                                    >
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <button type="submit" class="btn-primary" id="save-control-parameters-btn" style="width: 100%;">
+                                    <i class="ph ph-paper-plane-tilt"></i> Simpan ke ESP32
+                                </button>
+                            </div>
+                            <p style="grid-column: 1 / -1; color: var(--text-muted); font-size: 0.85rem; margin: 10px 0 0 0; display: flex; align-items: center; gap: 6px;">
+                                <i class="ph ph-info-circle text-teal" style="font-size: 1.1rem;"></i> Web menyimpan parameter sebagai konfigurasi. ESP32 mengambil konfigurasi ini dan mengeksekusi rule-based misting secara lokal.
+                            </p>
+                        </form>
+                    </div>
+
                     <div class="dashboard-grid">
                         <!-- 4. RH Chart (Separated) -->
                         <div class="chart-card glass-card grid-col-span-2">
@@ -189,7 +255,7 @@
                                     <p>Sistem sedang mencari rekomendasi terbaik untuk menjaga stabilitas enclosure Anda...</p>
                                 </div>
                                 <div class="recommendation-actions">
-                                    <button class="btn-primary" disabled><i class="ph ph-check"></i> Menunggu Saran</button>
+                                    <button type="button" id="apply-dashboard-recommendation-btn" class="btn-primary" disabled><i class="ph ph-check"></i> Menunggu Saran</button>
                                 </div>
                             </div>
                         </div>
@@ -258,10 +324,10 @@
                     <div class="chart-card glass-card mb-2">
                         <div class="card-header">
                             <h2><i class="ph ph-chart-line text-blue"></i> Data Historis Suhu & Kelembapan</h2>
-                            <div class="card-actions">
-                                <button class="btn-small active">7H</button>
-                                <button class="btn-small">30H</button>
-                                <button class="btn-small">90H</button>
+                            <div class="card-actions" id="historical-period-filters">
+                                <button class="btn-small active" data-period="7d">7H</button>
+                                <button class="btn-small" data-period="30d">30H</button>
+                                <button class="btn-small" data-period="90d">90H</button>
                             </div>
                         </div>
                         <div class="chart-container large">
@@ -405,9 +471,9 @@
                         <div class="chart-card glass-card grid-col-span-3">
                             <div class="card-header">
                                 <h2><i class="ph ph-chart-line text-green"></i> Riwayat Skor Stabilitas</h2>
-                                <div class="card-actions">
-                                    <button class="btn-small active">4 Minggu</button>
-                                    <button class="btn-small">12 Minggu</button>
+                                <div class="card-actions" id="stability-period-filters">
+                                    <button class="btn-small active" data-period="4w">4 Minggu</button>
+                                    <button class="btn-small" data-period="12w">12 Minggu</button>
                                 </div>
                             </div>
                             <div class="chart-container">

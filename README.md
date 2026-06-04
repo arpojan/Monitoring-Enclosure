@@ -1,66 +1,185 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# RAP Enclosure DSS — Smart Misting Monitoring & Configuration Dashboard
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi ini adalah dashboard monitoring dan konfigurasi kontrol misting berbasis Laravel untuk enclosure/kandang. Sistem digunakan untuk membaca data suhu dan kelembapan dari ESP32, menyimpan telemetry, menampilkan analitik, serta memberikan AI insight dan AI recommendation sebagai Decision Support System (DSS).
 
-## About Laravel
+## Flow Sistem
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+```text
+Sensor + ESP32
+   ↓
+ESP32 membaca suhu dan kelembapan
+   ↓
+ESP32 mengambil parameter dari web:
+- bottom humidity
+- top humidity
+- misting duration
+   ↓
+ESP32 menjalankan rule-based misting secara lokal
+   ↓
+ESP32 mengirim telemetry + status misting aktual ke Laravel
+   ↓
+Laravel menyimpan data, menampilkan dashboard, analytics, stability score
+   ↓
+AI insight + AI recommendation membantu user menentukan parameter kontrol
+   ↓
+User menerapkan parameter manual / menerapkan rekomendasi AI
+   ↓
+ESP32 mengambil konfigurasi terbaru
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+> Catatan penting: Laravel/web bukan pengambil keputusan ON/OFF misting utama. Web berperan sebagai monitoring, configuration panel, dan AI-based DSS. Eksekusi rule-based misting dilakukan oleh ESP32.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Fitur Utama
 
-## Learning Laravel
+- Login dan pemilihan enclosure/kandang.
+- Realtime dashboard untuk suhu, kelembapan, status misting, dan status koneksi perangkat.
+- Parameter kontrol misting:
+  - bottom humidity
+  - top humidity
+  - misting duration
+- API telemetry untuk menerima data aktual dari ESP32.
+- API control config agar ESP32 dapat mengambil konfigurasi terbaru.
+- Analitik data historis: rata-rata RH, suhu, siklus misting, distribusi kelembapan, dan grafik historis.
+- Stability score berdasarkan range compliance, variability, stability duration, dan fluctuation penalty.
+- AI insight dan AI recommendation sebagai DSS.
+- Apply/reject recommendation agar rekomendasi AI menjadi actionable.
+- Parameter history untuk mencatat perubahan parameter manual maupun dari rekomendasi AI.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Tech Stack
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+- Laravel 11
+- PHP 8.2+
+- MySQL/MariaDB
+- Blade + JavaScript
+- Chart.js
+- ESP32 / telemetry simulator
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Endpoint Penting
 
-## Laravel Sponsors
+### Telemetry ESP32
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```http
+POST /api/telemetry
+```
 
-### Premium Partners
+Contoh payload:
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+```json
+{
+  "enclosure_id": 1,
+  "temperature": 25.4,
+  "humidity": 84.7,
+  "misting_status": true,
+  "misting_duration_executed": 10,
+  "device_timestamp": "2026-05-20T15:20:00+07:00"
+}
+```
 
-## Contributing
+### ESP32 Mengambil Konfigurasi
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```http
+GET /api/enclosures/{id}/control-config
+```
 
-## Code of Conduct
+Contoh response:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```json
+{
+  "success": true,
+  "data": {
+    "enclosure_id": 1,
+    "mode": "auto",
+    "bottom_humidity": 82,
+    "top_humidity": 92,
+    "misting_duration_seconds": 10,
+    "humidity_min": 80,
+    "humidity_max": 95
+  }
+}
+```
 
-## Security Vulnerabilities
+### Update Parameter dari Web
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```http
+PUT /api/enclosures/{id}/parameters
+```
 
-## License
+Contoh payload:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```json
+{
+  "misting_bottom_threshold": 82,
+  "misting_top_threshold": 92,
+  "misting_duration_seconds": 10,
+  "source": "manual"
+}
+```
+
+### Apply AI Recommendation
+
+```http
+POST /api/recommendations/{id}/apply
+```
+
+### Reject AI Recommendation
+
+```http
+POST /api/recommendations/{id}/reject
+```
+
+## Instalasi Lokal
+
+```bash
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate --seed
+npm run dev
+php artisan serve
+```
+
+Konfigurasi database di `.env`:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=skripsi
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+## Menjalankan Simulator ESP32
+
+```bash
+python telemetry_simulator.py
+```
+
+Simulator mengikuti flow final: simulator/ESP32 mengambil konfigurasi dari web, menjalankan rule-based misting lokal, lalu mengirim telemetry dan status misting aktual ke backend.
+
+## Struktur File Penting
+
+```text
+app/Http/Controllers/Api/TelemetryController.php
+app/Http/Controllers/Api/EnclosureController.php
+app/Http/Controllers/Api/RecommendationController.php
+app/Models/EnclosureParameter.php
+app/Models/ParameterHistory.php
+database/migrations/2026_05_20_000001_add_control_config_columns.php
+database/migrations/2026_05_20_000002_create_parameter_histories_table.php
+resources/views/dashboard/index.blade.php
+public/assets/js/api.js
+public/assets/js/app.js
+telemetry_simulator.py
+```
+
+## Catatan Keamanan
+
+Endpoint ESP32 mendukung header opsional:
+
+```http
+X-DEVICE-KEY: your-device-key
+```
+
+Jika `device_key` pada tabel `enclosures` kosong, API tetap menerima request untuk kemudahan demo lokal. Jika `device_key` diisi, ESP32 wajib mengirim header tersebut.

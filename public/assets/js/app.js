@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Chart instances
     let charts = {};
 
+    // Prevent dashboard polling from overwriting parameter inputs while the user is editing.
+    // The dashboard fetch runs every few seconds, so without this guard the form can
+    // visually revert to the previous DB value before the user presses Save.
+    let controlParametersDirty = false;
+    let controlParametersSaving = false;
+
     // Pengecekan agar tidak error jika tidak ada di halaman login
     if (loginForm) {
         // Login Handle
@@ -802,6 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // appScreen already declared at top of DOMContentLoaded
     const ENCLOSURE_ID = appScreen ? appScreen.getAttribute('data-enclosure-id') : null;
     let pollInterval = null;
+    let latestRecommendationId = null;
 
     /**
      * Update dashboard metric cards with real API data.
@@ -850,7 +857,26 @@ document.addEventListener('DOMContentLoaded', () => {
             mistVal.className = `metric-value ${isOn ? 'text-blue' : ''}`;
         }
         if (mistTrend && data.parameters) {
-            mistTrend.textContent = data.parameters.is_misting_auto ? 'Mode: Otomatis' : 'Mode: Manual';
+            const duration = data.parameters.misting_duration_seconds || '-';
+            mistTrend.textContent = `${data.parameters.is_misting_auto ? 'Mode: Otomatis' : 'Mode: Manual'} • ${duration} detik`;
+        }
+
+        // Sync parameter control form with current backend config.
+        // Do not overwrite the fields while the user is editing or while a save request is in progress.
+        if (data.parameters && !controlParametersDirty && !controlParametersSaving) {
+            const bottomInput = document.getElementById('param-bottom-humidity');
+            const topInput = document.getElementById('param-top-humidity');
+            const durationInput = document.getElementById('param-misting-duration');
+
+            if (bottomInput) {
+                bottomInput.value = parseFloat(data.parameters.misting_bottom_threshold).toFixed(1);
+            }
+            if (topInput) {
+                topInput.value = parseFloat(data.parameters.misting_top_threshold).toFixed(1);
+            }
+            if (durationInput) {
+                durationInput.value = data.parameters.misting_duration_seconds || 10;
+            }
         }
 
         // Stability card
@@ -941,12 +967,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const recPanel = document.getElementById('dashboard-recommendation');
         if (recPanel && data.recommendation) {
             const rec = data.recommendation;
-            recPanel.querySelector('.recommendation-text p').textContent = rec.description;
+            latestRecommendationId = rec.id;
+            const detail = [
+                `Bottom: ${rec.current_bottom_rh ?? '-'}% → ${rec.recommended_bottom_rh ?? '-'}%`,
+                `Top: ${rec.current_top_rh ?? '-'}% → ${rec.recommended_top_rh ?? '-'}%`,
+                `Durasi: ${rec.current_duration ?? '-'}s → ${rec.recommended_duration ?? '-'}s`,
+            ].join(' | ');
+            recPanel.querySelector('.recommendation-text p').innerHTML = `${rec.description}<br><small style="color:var(--text-muted);">${detail}</small>`;
             recPanel.querySelector('.btn-primary').removeAttribute('disabled');
-            recPanel.querySelector('.btn-primary').innerHTML = `<i class="ph ph-check"></i> Terapkan Perubahan`;
+            recPanel.querySelector('.btn-primary').innerHTML = `<i class="ph ph-check"></i> Terapkan Rekomendasi AI`;
         } else if (recPanel) {
+            latestRecommendationId = null;
             recPanel.querySelector('.recommendation-text p').textContent = "Tidak ada tindakan yang direkomendasikan saat ini.";
             recPanel.querySelector('.btn-primary').setAttribute('disabled', 'true');
+            recPanel.querySelector('.btn-primary').innerHTML = `<i class="ph ph-check"></i> Menunggu Saran`;
         }
 
         // Event Timeline
@@ -1132,10 +1166,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let stabilityLoaded = false;
 
-    async function fetchStabilityData() {
+    async function fetchStabilityData(period = '4w') {
         if (!ENCLOSURE_ID || typeof API === 'undefined') return;
 
-        const response = await API.getStability(ENCLOSURE_ID);
+        const response = await API.getStability(ENCLOSURE_ID, period);
         if (!response.success) return;
 
         const d = response.data;
@@ -1240,11 +1274,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 const target = link.getAttribute('data-target');
 
                 if (target === 'analytics' && !analyticsLoaded) {
-                    setTimeout(() => fetchAnalyticsData(), 100);
+                    setTimeout(() => fetchAnalyticsData('7d'), 100);
                 }
                 if (target === 'stability' && !stabilityLoaded) {
-                    setTimeout(() => fetchStabilityData(), 100);
+                    setTimeout(() => fetchStabilityData('4w'), 100);
                 }
+            });
+        });
+    }
+
+    // ─── Period Filter Listeners ─────────────────────────────────
+    const historicalFilters = document.querySelectorAll('#historical-period-filters button');
+    if (historicalFilters.length > 0) {
+        historicalFilters.forEach(btn => {
+            btn.addEventListener('click', () => {
+                historicalFilters.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const period = btn.getAttribute('data-period');
+                fetchAnalyticsData(period);
+            });
+        });
+    }
+
+    const stabilityFilters = document.querySelectorAll('#stability-period-filters button');
+    if (stabilityFilters.length > 0) {
+        stabilityFilters.forEach(btn => {
+            btn.addEventListener('click', () => {
+                stabilityFilters.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const period = btn.getAttribute('data-period');
+                fetchStabilityData(period);
             });
         });
     }
@@ -1341,6 +1400,104 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+
+    // Apply AI Recommendation from dashboard DSS card
+    const applyDashboardRecommendationBtn = document.getElementById('apply-dashboard-recommendation-btn');
+    if (applyDashboardRecommendationBtn) {
+        applyDashboardRecommendationBtn.addEventListener('click', async () => {
+            if (!latestRecommendationId || typeof API === 'undefined') return;
+
+            const originalBtnHtml = applyDashboardRecommendationBtn.innerHTML;
+            applyDashboardRecommendationBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Menerapkan...';
+            applyDashboardRecommendationBtn.disabled = true;
+
+            try {
+                const response = await API.applyRecommendation(latestRecommendationId);
+                if (!response.success) throw new Error(response.error || response.message || 'Gagal menerapkan rekomendasi');
+
+                showNotificationToast('Rekomendasi Diterapkan', 'Parameter bottom/top/durasi misting berhasil diperbarui.');
+                await fetchDashboardData();
+            } catch (err) {
+                console.error(err);
+                showNotificationToast('Gagal', err.message || 'Terjadi kesalahan saat menerapkan rekomendasi.');
+            } finally {
+                applyDashboardRecommendationBtn.innerHTML = originalBtnHtml;
+                applyDashboardRecommendationBtn.disabled = false;
+            }
+        });
+    }
+
+    // Control Parameter Form: bottom humidity, top humidity, misting duration
+    const controlParametersForm = document.getElementById('control-parameters-form');
+    if (controlParametersForm) {
+        const parameterInputs = [
+            document.getElementById('param-bottom-humidity'),
+            document.getElementById('param-top-humidity'),
+            document.getElementById('param-misting-duration')
+        ].filter(Boolean);
+
+        parameterInputs.forEach((input) => {
+            input.addEventListener('input', () => {
+                controlParametersDirty = true;
+            });
+        });
+
+        controlParametersForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!ENCLOSURE_ID || typeof API === 'undefined') return;
+
+            const btn = document.getElementById('save-control-parameters-btn');
+            const originalBtnHtml = btn.innerHTML;
+            const bottomHumidity = parseFloat(document.getElementById('param-bottom-humidity').value);
+            const topHumidity = parseFloat(document.getElementById('param-top-humidity').value);
+            const duration = parseInt(document.getElementById('param-misting-duration').value, 10);
+
+            if (Number.isNaN(bottomHumidity) || Number.isNaN(topHumidity) || Number.isNaN(duration)) {
+                showNotificationToast('Input Tidak Valid', 'Bottom humidity, top humidity, dan durasi wajib diisi.');
+                return;
+            }
+
+            if (bottomHumidity >= topHumidity) {
+                showNotificationToast('Input Tidak Valid', 'Bottom humidity harus lebih kecil dari top humidity.');
+                return;
+            }
+
+            btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Menyimpan...';
+            btn.disabled = true;
+            controlParametersSaving = true;
+
+            try {
+                const response = await API.updateParameters(ENCLOSURE_ID, {
+                    misting_bottom_threshold: bottomHumidity,
+                    misting_top_threshold: topHumidity,
+                    misting_duration_seconds: duration,
+                    source: 'manual'
+                });
+
+                if (!response.success) throw new Error(response.error || response.message || 'Gagal menyimpan parameter');
+
+                controlParametersDirty = false;
+
+                if (response.data && response.data.parameters) {
+                    const saved = response.data.parameters;
+                    document.getElementById('param-bottom-humidity').value = parseFloat(saved.misting_bottom_threshold).toFixed(1);
+                    document.getElementById('param-top-humidity').value = parseFloat(saved.misting_top_threshold).toFixed(1);
+                    document.getElementById('param-misting-duration').value = saved.misting_duration_seconds || duration;
+                }
+
+                showNotificationToast('Parameter Tersimpan', 'Konfigurasi berhasil disimpan dan siap diambil ESP32.');
+                await fetchDashboardData();
+            } catch (err) {
+                console.error(err);
+                showNotificationToast('Gagal', err.message || 'Terjadi kesalahan saat menyimpan parameter.');
+            } finally {
+                controlParametersSaving = false;
+                btn.innerHTML = originalBtnHtml;
+                btn.disabled = false;
+            }
+        });
+    }
+
     // Enclosure Settings Form
     const encSettingsForm = document.getElementById('edit-enclosure-form');
     if (encSettingsForm) {
@@ -1397,8 +1554,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start data polling if we're on the dashboard page
     if (ENCLOSURE_ID && document.getElementById('rhRealtimeChart')) {
         fetchDashboardData();
-        fetchAnalyticsData();
-        fetchStabilityData();
+        fetchAnalyticsData('7d');
+        fetchStabilityData('4w');
         pollInterval = setInterval(fetchDashboardData, 5000);
     }
 });

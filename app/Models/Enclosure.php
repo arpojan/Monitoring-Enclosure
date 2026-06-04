@@ -19,6 +19,7 @@ class Enclosure extends Model
         'species',
         'is_active',
         'last_seen_at',
+        'device_key',
     ];
 
     protected $casts = [
@@ -72,6 +73,11 @@ class Enclosure extends Model
     public function eventTimelines(): HasMany
     {
         return $this->hasMany(EventTimeline::class);
+    }
+
+    public function parameterHistories(): HasMany
+    {
+        return $this->hasMany(ParameterHistory::class);
     }
 
     public function reports(): HasMany

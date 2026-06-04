@@ -1,8 +1,15 @@
 {
-    "name": "laravel/laravel",
+    "name": "bijak-prasodjo/rap-enclosure-dss",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Laravel dashboard monitoring and AI-based DSS for ESP32 rule-based misting control.",
+    "keywords": [
+        "laravel",
+        "iot",
+        "esp32",
+        "dss",
+        "misting",
+        "smart-enclosure"
+    ],
     "license": "MIT",
     "require": {
         "php": "^8.2",
