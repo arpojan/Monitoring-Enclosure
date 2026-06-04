@@ -194,9 +194,9 @@
                             <div class="card-header">
                                 <h2>Kondisi Kelembapan (RH) Terkini</h2>
                                 <div class="card-actions">
-                                    <span style="font-size: 0.85rem; color: var(--text-muted); margin-right: 10px; display: inline-flex; align-items: center; gap: 4px;">
+                                    <span id="rh-ideal-zone-label" style="font-size: 0.85rem; color: var(--text-muted); margin-right: 10px; display: inline-flex; align-items: center; gap: 4px;">
                                         <span style="display:inline-block; width:12px; height:12px; background:rgba(76, 175, 80, 0.2); border:1px solid rgba(76,175,80,1);"></span>
-                                        Zona Ideal: 80–90%
+                                        Zona Ideal: {{ (int) round($config->bottom_humidity ?? 80) }}–{{ (int) round($config->top_humidity ?? 90) }}%
                                     </span>
                                 </div>
                             </div>
@@ -266,22 +266,49 @@
                 <div id="view-analytics" class="page-view">
                     <!-- Filter Bar -->
                     <div class="analytics-header glass-card">
-                        <div class="filter-group">
-                            <label>Rentang Waktu</label>
-                            <input type="date" class="input-modern" value="2026-05-03">
-                            <span>-</span>
-                            <input type="date" class="input-modern" value="2026-05-10">
+                        <div class="filter-controls-group">
+                            <!-- Filter Item: Rentang Waktu -->
+                            <div class="filter-item">
+                                <label for="date-start">
+                                    <i class="ph ph-calendar"></i> Rentang Waktu
+                                </label>
+                                <div class="date-range-inputs">
+                                    <div class="date-input-wrapper">
+                                        <i class="ph ph-calendar-blank date-icon"></i>
+                                        <input type="date" id="date-start" class="input-modern" value="{{ \Carbon\Carbon::now()->subDays(7)->format('Y-m-d') }}">
+                                    </div>
+                                    <span class="range-separator"><i class="ph ph-arrow-right"></i></span>
+                                    <div class="date-input-wrapper">
+                                        <i class="ph ph-calendar-blank date-icon"></i>
+                                        <input type="date" id="date-end" class="input-modern" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Filter Item: Pilih Metrik -->
+                            <div class="filter-item">
+                                <label for="metric-select">
+                                    <i class="ph ph-funnel"></i> Pilih Metrik
+                                </label>
+                                <div class="select-wrapper">
+                                    <select id="metric-select" class="input-modern">
+                                        <option value="all">Semua Metrik</option>
+                                        <option value="humidity">Kelembapan (RH %)</option>
+                                        <option value="temperature">Suhu (°C)</option>
+                                        <option value="stability">Skor Stabilitas</option>
+                                    </select>
+                                    <i class="ph ph-caret-down select-caret"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="filter-group">
-                            <label>Pilih Metrik</label>
-                            <select class="input-modern">
-                                <option>Semua Metrik</option>
-                                <option>Kelembapan (RH %)</option>
-                                <option>Suhu (°C)</option>
-                                <option>Skor Stabilitas</option>
-                            </select>
+
+                        <!-- Action Button: Ekspor Laporan -->
+                        <div class="action-wrapper">
+                            <button class="btn-export" id="export-report-btn">
+                                <i class="ph ph-download-simple"></i>
+                                <span>Ekspor Laporan</span>
+                            </button>
                         </div>
-                        <button class="btn-secondary"><i class="ph ph-download-simple"></i> Ekspor Laporan</button>
                     </div>
 
                     <!-- Ringkasan Statistik -->

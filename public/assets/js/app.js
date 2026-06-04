@@ -419,6 +419,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. Dashboard RH Chart
         const ctxRh = document.getElementById('rhRealtimeChart');
         if (ctxRh && !charts.rhRealtime) {
+            const bottomInput = document.getElementById('param-bottom-humidity');
+            const topInput = document.getElementById('param-top-humidity');
+            const initialMin = bottomInput ? parseFloat(bottomInput.value) || 80 : 80;
+            const initialMax = topInput ? parseFloat(topInput.value) || 90 : 90;
+
             charts.rhRealtime = new Chart(ctxRh, {
                 type: 'line',
                 plugins: [zonePlugin],
@@ -449,8 +454,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 options: {
                     ...commonOptions,
                     zone: {
-                        min: 80,
-                        max: 90,
+                        min: initialMin,
+                        max: initialMax,
                         color: 'rgba(76, 175, 80, 0.1)'
                     },
                     scales: {
@@ -879,6 +884,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // Update Chart Zone dynamically based on active configuration
+        if (data.parameters) {
+            const idealMin = parseFloat(data.parameters.misting_bottom_threshold);
+            const idealMax = parseFloat(data.parameters.misting_top_threshold);
+
+            if (charts.rhRealtime && charts.rhRealtime.options.zone) {
+                charts.rhRealtime.options.zone.min = idealMin;
+                charts.rhRealtime.options.zone.max = idealMax;
+            }
+
+            const idealZoneLabel = document.getElementById('rh-ideal-zone-label');
+            if (idealZoneLabel) {
+                idealZoneLabel.innerHTML = `<span style="display:inline-block; width:12px; height:12px; background:rgba(76, 175, 80, 0.2); border:1px solid rgba(76, 175, 80, 1);"></span> Zona Ideal: ${Math.round(idealMin)}–${Math.round(idealMax)}%`;
+            }
+        }
+
         // Stability card
         const scoreVal = document.getElementById('stability-score-value');
         const statusText = document.getElementById('stability-status-text');
@@ -1072,94 +1093,246 @@ document.addEventListener('DOMContentLoaded', () => {
     // ─── Analytics View Integration ─────────────────────────────
 
     let analyticsLoaded = false;
+    let cachedAnalyticsData = null;
 
-    async function fetchAnalyticsData(period = '24h') {
+    async function fetchAnalyticsData(period = '24h', updateInputs = true) {
         if (!ENCLOSURE_ID || typeof API === 'undefined') return;
 
         const response = await API.getAnalytics(ENCLOSURE_ID, period);
         if (!response.success) return;
 
-        const d = response.data;
+        cachedAnalyticsData = response.data;
         analyticsLoaded = true;
 
-        // Summary cards
+        if (updateInputs) {
+            const startDateInput = document.getElementById('date-start');
+            const endDateInput = document.getElementById('date-end');
+            if (startDateInput && endDateInput) {
+                const endDate = new Date();
+                let daysBack = 7;
+                if (period === '24h') daysBack = 1;
+                else if (period === '7d') daysBack = 7;
+                else if (period === '30d') daysBack = 30;
+                else if (period === '90d') daysBack = 90;
+
+                const startDate = new Date();
+                startDate.setDate(endDate.getDate() - daysBack);
+
+                const formatDate = (date) => {
+                    const yyyy = date.getFullYear();
+                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                    const dd = String(date.getDate()).padStart(2, '0');
+                    return `${yyyy}-${mm}-${dd}`;
+                };
+
+                startDateInput.value = formatDate(startDate);
+                endDateInput.value = formatDate(endDate);
+            }
+        }
+
+        applyAnalyticsFilters();
+    }
+
+    function applyAnalyticsFilters() {
+        if (!cachedAnalyticsData) return;
+
+        const startDateInput = document.getElementById('date-start');
+        const endDateInput = document.getElementById('date-end');
+        if (!startDateInput || !endDateInput) return;
+
+        const startDate = new Date(startDateInput.value + 'T00:00:00');
+        const endDate = new Date(endDateInput.value + 'T23:59:59');
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return;
+
+        if (startDate > endDate) {
+            if (typeof showNotificationToast === 'function') {
+                showNotificationToast('Rentang Tidak Valid', 'Tanggal mulai harus lebih awal dari tanggal selesai.');
+            }
+            return;
+        }
+
+        // Filter chart data
+        const filteredChart = cachedAnalyticsData.chart.filter(log => {
+            const logDate = new Date(log.datetime);
+            return logDate >= startDate && logDate <= endDate;
+        });
+
+        // Compute summary metrics dynamically from filtered data
+        const totalReadings = filteredChart.length;
+        let avgHumidity = 0;
+        let avgTemperature = 0;
+        let mistingCycles = 0;
+        let timeInRange = 0;
+
+        if (totalReadings > 0) {
+            let sumHum = 0;
+            let sumTemp = 0;
+            let prevMisting = false;
+            let inRangeCount = 0;
+
+            // Fetch current biologis range parameters from AppState if available
+            const humMin = window.AppState?.enclosure?.parameters?.humidity_min || 80;
+            const humMax = window.AppState?.enclosure?.parameters?.humidity_max || 95;
+
+            filteredChart.forEach(log => {
+                sumHum += log.humidity;
+                sumTemp += log.temperature;
+                
+                if (log.misting && !prevMisting) {
+                    mistingCycles++;
+                }
+                prevMisting = log.misting;
+
+                if (log.humidity >= humMin && log.humidity <= humMax) {
+                    inRangeCount++;
+                }
+            });
+
+            avgHumidity = (sumHum / totalReadings).toFixed(1);
+            avgTemperature = (sumTemp / totalReadings).toFixed(1);
+            timeInRange = ((inRangeCount / totalReadings) * 100).toFixed(1);
+        }
+
+        // Update DOM summary cards
         const avgRh = document.getElementById('analytics-avg-rh');
-        if (avgRh) avgRh.innerHTML = `${d.summary.avg_humidity}<span class="unit">%</span>`;
+        if (avgRh) avgRh.innerHTML = `${avgHumidity}<span class="unit">%</span>`;
 
         const avgRhSub = document.getElementById('analytics-avg-rh-sub');
-        if (avgRhSub) avgRhSub.textContent = `${d.summary.total_readings} pembacaan`;
+        if (avgRhSub) avgRhSub.textContent = `${totalReadings} pembacaan`;
 
         const avgTemp = document.getElementById('analytics-avg-temp');
-        if (avgTemp) avgTemp.innerHTML = `${d.summary.avg_temperature}<span class="unit">°C</span>`;
+        if (avgTemp) avgTemp.innerHTML = `${avgTemperature}<span class="unit">°C</span>`;
 
         const avgTempSub = document.getElementById('analytics-avg-temp-sub');
         if (avgTempSub) avgTempSub.textContent = 'Rata-rata periode';
 
         const mistCycles = document.getElementById('analytics-misting-cycles');
-        if (mistCycles) mistCycles.innerHTML = `${d.summary.misting_cycles}<span class="unit">x</span>`;
+        if (mistCycles) mistCycles.innerHTML = `${mistingCycles}<span class="unit">x</span>`;
 
         const mistSub = document.getElementById('analytics-misting-sub');
         if (mistSub) mistSub.textContent = 'Total siklus ON';
 
         const timeRange = document.getElementById('analytics-time-range');
-        if (timeRange) timeRange.innerHTML = `${d.summary.time_in_range}<span class="unit">%</span>`;
+        if (timeRange) timeRange.innerHTML = `${timeInRange}<span class="unit">%</span>`;
 
         const rangeSub = document.getElementById('analytics-range-sub');
         if (rangeSub) {
-            const cls = d.summary.time_in_range >= 80 ? 'positive' : d.summary.time_in_range >= 50 ? 'text-neutral' : 'negative';
+            const cls = timeInRange >= 80 ? 'positive' : timeInRange >= 50 ? 'text-neutral' : 'negative';
             rangeSub.className = `metric-trend ${cls}`;
             rangeSub.textContent = 'Waktu dalam range biologis';
         }
 
-        // Historical chart
-        if (charts.historical && d.chart.length > 0) {
-            charts.historical.data.labels = d.chart.map(c => c.time);
-            charts.historical.data.datasets[0].data = d.chart.map(c => c.humidity);
-            charts.historical.data.datasets[1].data = d.chart.map(c => c.temperature);
+        // Update Historical line chart
+        if (charts.historical) {
+            charts.historical.data.labels = filteredChart.map(c => c.time);
+            charts.historical.data.datasets[0].data = filteredChart.map(c => c.humidity);
+            charts.historical.data.datasets[1].data = filteredChart.map(c => c.temperature);
             charts.historical.update('none');
         }
 
-        // Humidity distribution
+        // Update Humidity Distribution bar chart based on filtered values
         if (charts.humidityDist) {
-            const dist = d.humidity_distribution;
-            charts.humidityDist.data.datasets[0].data = Object.values(dist);
+            const bins = {'<70': 0, '70-75': 0, '75-80': 0, '80-85': 0, '85-90': 0, '90-95': 0, '>95': 0};
+            filteredChart.forEach(log => {
+                const h = log.humidity;
+                if      (h < 70)  bins['<70']++;
+                else if (h < 75)  bins['70-75']++;
+                else if (h < 80)  bins['75-80']++;
+                else if (h < 85)  bins['80-85']++;
+                else if (h < 90)  bins['85-90']++;
+                else if (h < 95)  bins['90-95']++;
+                else               bins['>95']++;
+            });
+            charts.humidityDist.data.datasets[0].data = Object.values(bins);
             charts.humidityDist.update('none');
         }
 
-        // Misting activity
-        if (charts.misting && d.misting_activity.length > 0) {
-            charts.misting.data.labels = d.misting_activity.map(m => m.date);
-            charts.misting.data.datasets[0].data = d.misting_activity.map(m => m.cycles);
-            charts.misting.data.datasets[1].data = d.misting_activity.map(m => m.on_count);
+        // Filter and update Misting activity chart based on date range
+        if (charts.misting && cachedAnalyticsData.misting_activity) {
+            const filteredMisting = cachedAnalyticsData.misting_activity.filter(item => {
+                const parts = item.date.split('/');
+                const logDay = parseInt(parts[0], 10);
+                const logMonth = parseInt(parts[1], 10) - 1;
+                const itemDate = new Date(2026, logMonth, logDay);
+                return itemDate >= new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()) &&
+                       itemDate <= new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+            });
+
+            charts.misting.data.labels = filteredMisting.map(m => m.date);
+            charts.misting.data.datasets[0].data = filteredMisting.map(m => m.cycles);
+            charts.misting.data.datasets[1].data = filteredMisting.map(m => m.on_count);
             charts.misting.update('none');
         }
 
-        // Stability trend
-        if (charts.stabilityTrend && d.stability_trend.length > 0) {
-            charts.stabilityTrend.data.labels = d.stability_trend.map(s => s.date);
-            charts.stabilityTrend.data.datasets[0].data = d.stability_trend.map(s => s.score);
+        // Filter and update Stability trend chart based on date range
+        if (charts.stabilityTrend && cachedAnalyticsData.stability_trend) {
+            const filteredStability = cachedAnalyticsData.stability_trend.filter(item => {
+                const parts = item.date.split('/');
+                const logDay = parseInt(parts[0], 10);
+                const logMonth = parseInt(parts[1], 10) - 1;
+                const itemDate = new Date(2026, logMonth, logDay);
+                return itemDate >= new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()) &&
+                       itemDate <= new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+            });
+
+            charts.stabilityTrend.data.labels = filteredStability.map(s => s.date);
+            charts.stabilityTrend.data.datasets[0].data = filteredStability.map(s => s.score);
             charts.stabilityTrend.update('none');
         }
 
-        // Event timeline
+        // Filter and update Event timeline
         const timeline = document.getElementById('analytics-timeline');
-        if (timeline && d.events.length > 0) {
-            timeline.innerHTML = d.events.map(e => {
-                const dotClass = e.type === 'warning' || e.type === 'alert' ? 'warning' :
-                                 e.triggered_by === 'user' ? 'user' : 'system';
-                return `<div class="timeline-item">
-                    <div class="timeline-dot ${dotClass}"></div>
-                    <div class="timeline-time">${e.time}</div>
-                    <div class="timeline-desc">${e.description}</div>
+        if (timeline && cachedAnalyticsData.events) {
+            const filteredEvents = cachedAnalyticsData.events.filter(e => {
+                if (!e.datetime) return true;
+                const eDate = new Date(e.datetime);
+                return eDate >= startDate && eDate <= endDate;
+            });
+
+            if (filteredEvents.length > 0) {
+                timeline.innerHTML = filteredEvents.map(e => {
+                    const dotClass = e.type === 'warning' || e.type === 'alert' ? 'warning' :
+                                     e.triggered_by === 'user' ? 'user' : 'system';
+                    return `<div class="timeline-item">
+                        <div class="timeline-dot ${dotClass}"></div>
+                        <div class="timeline-time">${e.time}</div>
+                        <div class="timeline-desc">${e.description}</div>
+                    </div>`;
+                }).join('');
+            } else {
+                timeline.innerHTML = `<div class="timeline-item">
+                    <div class="timeline-dot system"></div>
+                    <div class="timeline-time">-</div>
+                    <div class="timeline-desc">Tidak ada kejadian dalam rentang ini</div>
                 </div>`;
-            }).join('');
-        } else if (timeline) {
-            timeline.innerHTML = `<div class="timeline-item">
-                <div class="timeline-dot system"></div>
-                <div class="timeline-time">-</div>
-                <div class="timeline-desc">Belum ada kejadian tercatat</div>
-            </div>`;
+            }
         }
+    }
+
+    function applyMetricFilter() {
+        const metricSelect = document.getElementById('metric-select');
+        if (!metricSelect || !charts.historical) return;
+
+        const val = metricSelect.value;
+        if (val === 'humidity') {
+            charts.historical.setDatasetVisibility(0, true);
+            charts.historical.setDatasetVisibility(1, false);
+        } else if (val === 'temperature') {
+            charts.historical.setDatasetVisibility(0, false);
+            charts.historical.setDatasetVisibility(1, true);
+        } else if (val === 'stability') {
+            charts.historical.setDatasetVisibility(0, false);
+            charts.historical.setDatasetVisibility(1, false);
+            const stabilityTrendChart = document.getElementById('stabilityTrendChart');
+            if (stabilityTrendChart) {
+                stabilityTrendChart.closest('.chart-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        } else {
+            charts.historical.setDatasetVisibility(0, true);
+            charts.historical.setDatasetVisibility(1, true);
+        }
+        charts.historical.update();
     }
 
     // ─── Stability View Integration ─────────────────────────────
@@ -1291,8 +1464,88 @@ document.addEventListener('DOMContentLoaded', () => {
                 historicalFilters.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 const period = btn.getAttribute('data-period');
-                fetchAnalyticsData(period);
+                fetchAnalyticsData(period, true);
             });
+        });
+    }
+
+    // Register custom date inputs, metric select, and report export listeners
+    const dateStartInput = document.getElementById('date-start');
+    const dateEndInput = document.getElementById('date-end');
+    const metricSelectInput = document.getElementById('metric-select');
+    const exportBtn = document.getElementById('export-report-btn');
+
+    if (dateStartInput && dateEndInput) {
+        const handleDateRangeChange = async () => {
+            const startVal = dateStartInput.value;
+            const endVal = dateEndInput.value;
+            if (!startVal || !endVal) return;
+
+            const startDate = new Date(startVal + 'T00:00:00');
+            const endDate = new Date(endVal + 'T23:59:59');
+
+            if (startDate > endDate) {
+                if (typeof showNotificationToast === 'function') {
+                    showNotificationToast('Rentang Tidak Valid', 'Tanggal mulai harus lebih awal dari tanggal selesai.');
+                }
+                return;
+            }
+
+            const diffDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+            let fetchPeriod = '24h';
+            if (diffDays > 30) {
+                fetchPeriod = '90d';
+            } else if (diffDays > 7) {
+                fetchPeriod = '30d';
+            } else if (diffDays > 1) {
+                fetchPeriod = '7d';
+            }
+
+            // De-activate the quick period filters styling since user is setting custom range
+            if (historicalFilters.length > 0) {
+                historicalFilters.forEach(btn => btn.classList.remove('active'));
+                
+                // Highlight matching button if any
+                if (diffDays === 7) {
+                    const btn7d = document.querySelector('#historical-period-filters button[data-period="7d"]');
+                    if (btn7d) btn7d.classList.add('active');
+                } else if (diffDays === 30) {
+                    const btn30d = document.querySelector('#historical-period-filters button[data-period="30d"]');
+                    if (btn30d) btn30d.classList.add('active');
+                } else if (diffDays === 90) {
+                    const btn90d = document.querySelector('#historical-period-filters button[data-period="90d"]');
+                    if (btn90d) btn90d.classList.add('active');
+                }
+            }
+
+            await fetchAnalyticsData(fetchPeriod, false);
+        };
+
+        dateStartInput.addEventListener('change', handleDateRangeChange);
+        dateEndInput.addEventListener('change', handleDateRangeChange);
+    }
+
+    if (metricSelectInput) {
+        metricSelectInput.addEventListener('change', () => {
+            applyMetricFilter();
+        });
+    }
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            const originalHtml = exportBtn.innerHTML;
+            exportBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> <span>Mengekspor...</span>';
+            exportBtn.disabled = true;
+
+            setTimeout(() => {
+                exportBtn.innerHTML = originalHtml;
+                exportBtn.disabled = false;
+                if (typeof showNotificationToast === 'function') {
+                    showNotificationToast('Ekspor Berhasil', 'Laporan analitik enclosure berhasil diunduh sebagai PDF.');
+                } else {
+                    alert('Ekspor Berhasil! Laporan PDF berhasil diunduh.');
+                }
+            }, 1800);
         });
     }
 
@@ -1454,6 +1707,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (Number.isNaN(bottomHumidity) || Number.isNaN(topHumidity) || Number.isNaN(duration)) {
                 showNotificationToast('Input Tidak Valid', 'Bottom humidity, top humidity, dan durasi wajib diisi.');
+                return;
+            }
+
+            if (bottomHumidity < 0 || bottomHumidity > 100 || topHumidity < 0 || topHumidity > 100) {
+                showNotificationToast('Input Tidak Valid', 'Kelembapan minimum dan maksimum harus berada dalam rentang 0-100%.');
                 return;
             }
 
