@@ -510,36 +510,127 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
 
-        // 2. Historical Chart (Analytics View)
-        const ctxHist = document.getElementById('historicalChart');
-        if (ctxHist && !charts.historical) {
-            charts.historical = new Chart(ctxHist, {
+        // 2a. Historical Humidity Chart (Analytics View) — with ideal zone
+        const ctxHistHum = document.getElementById('historicalHumidityChart');
+        if (ctxHistHum && !charts.historicalHumidity) {
+            const bottomInput = document.getElementById('param-bottom-humidity');
+            const topInput = document.getElementById('param-top-humidity');
+            const histZoneMin = bottomInput ? parseFloat(bottomInput.value) || 80 : 80;
+            const histZoneMax = topInput ? parseFloat(topInput.value) || 90 : 90;
+
+            charts.historicalHumidity = new Chart(ctxHistHum, {
                 type: 'line',
+                plugins: [zonePlugin],
                 data: {
-                    labels: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+                    labels: [],
                     datasets: [
                         {
-                            label: 'Rata-rata Kelembapan (%)',
-                            data: [84, 85, 83, 86, 88, 85, 84],
-                            borderColor: '#457b9d',
-                            backgroundColor: 'rgba(69, 123, 157, 0.1)',
+                            label: 'Kelembapan (%)',
+                            data: [],
+                            borderColor: '#2a9d8f',
+                            backgroundColor: 'rgba(42, 157, 143, 0.15)',
                             fill: true,
                             tension: 0.3,
-                            borderWidth: 2
-                        },
-                        {
-                            label: 'Rata-rata Suhu (°C)',
-                            data: [24.1, 24.5, 24.8, 24.4, 24.2, 24.5, 24.6],
-                            borderColor: '#4caf50',
-                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                            fill: true,
-                            tension: 0.3,
-                            borderWidth: 2
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHitRadius: 8
                         }
                     ]
                 },
                 options: {
-                    ...commonOptions
+                    ...commonOptions,
+                    zone: {
+                        min: histZoneMin,
+                        max: histZoneMax,
+                        color: 'rgba(76, 175, 80, 0.1)'
+                    },
+                    scales: {
+                        x: {
+                            ...commonOptions.scales.x,
+                            ticks: {
+                                autoSkip: true,
+                                maxTicksLimit: 12,
+                                maxRotation: 45,
+                                minRotation: 0,
+                                font: { size: 11 }
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            title: { display: true, text: 'Kelembapan (%)' },
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            min: 60,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            ...commonOptions.plugins.tooltip,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2b. Historical Temperature Chart (Analytics View)
+        const ctxHistTemp = document.getElementById('historicalTempChart');
+        if (ctxHistTemp && !charts.historicalTemp) {
+            charts.historicalTemp = new Chart(ctxHistTemp, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Suhu (°C)',
+                            data: [],
+                            borderColor: '#e76f51',
+                            backgroundColor: 'rgba(231, 111, 81, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHitRadius: 8
+                        }
+                    ]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        x: {
+                            ...commonOptions.scales.x,
+                            ticks: {
+                                autoSkip: true,
+                                maxTicksLimit: 12,
+                                maxRotation: 45,
+                                minRotation: 0,
+                                font: { size: 11 }
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            title: { display: true, text: 'Suhu (°C)' },
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                        }
+                    },
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            ...commonOptions.plugins.tooltip,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}°C`;
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
@@ -1094,43 +1185,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let analyticsLoaded = false;
     let cachedAnalyticsData = null;
+    let currentAnalyticsPeriod = '7d'; // Track the currently active analytics period
 
     async function fetchAnalyticsData(period = '24h', updateInputs = true) {
         if (!ENCLOSURE_ID || typeof API === 'undefined') return;
 
-        const response = await API.getAnalytics(ENCLOSURE_ID, period);
-        if (!response.success) return;
+        currentAnalyticsPeriod = period;
 
-        cachedAnalyticsData = response.data;
-        analyticsLoaded = true;
+        try {
+            const response = await API.getAnalytics(ENCLOSURE_ID, period);
+            if (!response || !response.success) {
+                console.warn('fetchAnalyticsData: API returned unsuccessful response for period', period);
+                if (typeof showNotificationToast === 'function') {
+                    showNotificationToast('Gagal Memuat', 'Data analitik tidak dapat dimuat dari server.');
+                }
+                return;
+            }
 
-        if (updateInputs) {
-            const startDateInput = document.getElementById('date-start');
-            const endDateInput = document.getElementById('date-end');
-            if (startDateInput && endDateInput) {
-                const endDate = new Date();
-                let daysBack = 7;
-                if (period === '24h') daysBack = 1;
-                else if (period === '7d') daysBack = 7;
-                else if (period === '30d') daysBack = 30;
-                else if (period === '90d') daysBack = 90;
+            cachedAnalyticsData = response.data;
+            analyticsLoaded = true;
 
-                const startDate = new Date();
-                startDate.setDate(endDate.getDate() - daysBack);
+            if (updateInputs) {
+                const startDateInput = document.getElementById('date-start');
+                const endDateInput = document.getElementById('date-end');
+                if (startDateInput && endDateInput) {
+                    const endDate = new Date();
+                    let daysBack = 7;
+                    if (period === '24h') daysBack = 1;
+                    else if (period === '7d') daysBack = 7;
+                    else if (period === '30d') daysBack = 30;
+                    else if (period === '90d') daysBack = 90;
 
-                const formatDate = (date) => {
-                    const yyyy = date.getFullYear();
-                    const mm = String(date.getMonth() + 1).padStart(2, '0');
-                    const dd = String(date.getDate()).padStart(2, '0');
-                    return `${yyyy}-${mm}-${dd}`;
-                };
+                    const startDate = new Date();
+                    startDate.setDate(endDate.getDate() - daysBack);
 
-                startDateInput.value = formatDate(startDate);
-                endDateInput.value = formatDate(endDate);
+                    const formatDate = (date) => {
+                        const yyyy = date.getFullYear();
+                        const mm = String(date.getMonth() + 1).padStart(2, '0');
+                        const dd = String(date.getDate()).padStart(2, '0');
+                        return `${yyyy}-${mm}-${dd}`;
+                    };
+
+                    startDateInput.value = formatDate(startDate);
+                    endDateInput.value = formatDate(endDate);
+                }
+            }
+
+            applyAnalyticsFilters();
+
+            // Force chart resize in case charts were created while hidden
+            Object.values(charts).forEach(chart => {
+                if (chart && typeof chart.resize === 'function') {
+                    chart.resize();
+                }
+            });
+        } catch (error) {
+            console.error('fetchAnalyticsData error:', error);
+            if (typeof showNotificationToast === 'function') {
+                showNotificationToast('Error', 'Terjadi kesalahan saat memuat data analitik.');
             }
         }
-
-        applyAnalyticsFilters();
     }
 
     function applyAnalyticsFilters() {
@@ -1223,13 +1337,49 @@ document.addEventListener('DOMContentLoaded', () => {
             rangeSub.textContent = 'Waktu dalam range biologis';
         }
 
-        // Update Historical line chart
-        if (charts.historical) {
-            charts.historical.data.labels = filteredChart.map(c => c.time);
-            charts.historical.data.datasets[0].data = filteredChart.map(c => c.humidity);
-            charts.historical.data.datasets[1].data = filteredChart.map(c => c.temperature);
-            charts.historical.update('none');
+        // Determine period from active button for aggregation
+        const activePeriodBtn = document.querySelector('#historical-period-filters .btn-small.active');
+        const periodForAgg = activePeriodBtn ? activePeriodBtn.getAttribute('data-period') : '7d';
+
+        // Aggregate data for readability based on period
+        const aggregated = aggregateChartData(filteredChart, periodForAgg);
+        const isAggregated = aggregated.aggregated;
+
+        // Update Historical Humidity chart
+        if (charts.historicalHumidity) {
+            charts.historicalHumidity.data.labels = aggregated.labels;
+            charts.historicalHumidity.data.datasets[0].data = aggregated.humidity;
+            charts.historicalHumidity.data.datasets[0].label = isAggregated ? 'Rata-rata Kelembapan (%)' : 'Kelembapan (%)';
+
+            // Update ideal zone from current config
+            const bottomInput = document.getElementById('param-bottom-humidity');
+            const topInput = document.getElementById('param-top-humidity');
+            const zoneMin = bottomInput ? parseFloat(bottomInput.value) || 80 : 80;
+            const zoneMax = topInput ? parseFloat(topInput.value) || 90 : 90;
+            if (charts.historicalHumidity.options.zone) {
+                charts.historicalHumidity.options.zone.min = zoneMin;
+                charts.historicalHumidity.options.zone.max = zoneMax;
+            }
+
+            // Update ideal zone label
+            const idealLabel = document.getElementById('hist-ideal-zone-label');
+            if (idealLabel) {
+                idealLabel.innerHTML = `<span style="display:inline-block; width:12px; height:12px; background:rgba(76, 175, 80, 0.2); border:1px solid rgba(76,175,80,1);"></span> Zona Ideal: ${Math.round(zoneMin)}–${Math.round(zoneMax)}%`;
+            }
+
+            charts.historicalHumidity.update('none');
         }
+
+        // Update Historical Temperature chart
+        if (charts.historicalTemp) {
+            charts.historicalTemp.data.labels = aggregated.labels;
+            charts.historicalTemp.data.datasets[0].data = aggregated.temperature;
+            charts.historicalTemp.data.datasets[0].label = isAggregated ? 'Rata-rata Suhu (°C)' : 'Suhu (°C)';
+            charts.historicalTemp.update('none');
+        }
+
+        // Update status summary bar
+        updateHistoricalStatusBar(filteredChart);
 
         // Update Humidity Distribution bar chart based on filtered values
         if (charts.humidityDist) {
@@ -1310,29 +1460,160 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /**
+     * Aggregate raw chart data to reduce density.
+     * - 7d: group per hour
+     * - 30d: group per 4 hours
+     * - 90d: group per day
+     */
+    function aggregateChartData(rawData, period) {
+        if (!rawData || rawData.length === 0) {
+            return { labels: [], humidity: [], temperature: [], aggregated: false };
+        }
+
+        // For small datasets, no aggregation needed
+        if (rawData.length <= 200) {
+            return {
+                labels: rawData.map(d => d.time),
+                humidity: rawData.map(d => d.humidity),
+                temperature: rawData.map(d => d.temperature),
+                aggregated: false
+            };
+        }
+
+        // Determine bucket format based on period
+        let bucketFn;
+        if (period === '90d') {
+            // Group by day
+            bucketFn = (datetime) => {
+                const d = new Date(datetime);
+                return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+            };
+        } else if (period === '30d') {
+            // Group by 4-hour blocks
+            bucketFn = (datetime) => {
+                const d = new Date(datetime);
+                const block = Math.floor(d.getHours() / 4) * 4;
+                return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(block).padStart(2,'0')}:00`;
+            };
+        } else {
+            // 7d: group by hour
+            bucketFn = (datetime) => {
+                const d = new Date(datetime);
+                return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:00`;
+            };
+        }
+
+        const buckets = new Map();
+        rawData.forEach(point => {
+            const key = bucketFn(point.datetime);
+            if (!buckets.has(key)) {
+                buckets.set(key, { sumHum: 0, sumTemp: 0, count: 0 });
+            }
+            const b = buckets.get(key);
+            b.sumHum += point.humidity;
+            b.sumTemp += point.temperature;
+            b.count++;
+        });
+
+        const labels = [];
+        const humidity = [];
+        const temperature = [];
+        buckets.forEach((b, key) => {
+            labels.push(key);
+            humidity.push(parseFloat((b.sumHum / b.count).toFixed(1)));
+            temperature.push(parseFloat((b.sumTemp / b.count).toFixed(1)));
+        });
+
+        return { labels, humidity, temperature, aggregated: true };
+    }
+
+    /**
+     * Update the status summary bar above historical charts.
+     */
+    function updateHistoricalStatusBar(chartData) {
+        if (!chartData || chartData.length === 0) return;
+
+        // Use the last data point as "current"
+        const latest = chartData[chartData.length - 1];
+        const humidity = latest.humidity;
+        const temperature = latest.temperature;
+        const misting = latest.misting;
+
+        // Read current config thresholds
+        const bottomInput = document.getElementById('param-bottom-humidity');
+        const topInput = document.getElementById('param-top-humidity');
+        const bottom = bottomInput ? parseFloat(bottomInput.value) || 80 : 80;
+        const top = topInput ? parseFloat(topInput.value) || 90 : 90;
+
+        // Update values
+        const rhEl = document.getElementById('hist-current-rh');
+        const tempEl = document.getElementById('hist-current-temp');
+        if (rhEl) rhEl.textContent = humidity.toFixed(1);
+        if (tempEl) tempEl.textContent = temperature.toFixed(1);
+
+        // Determine humidity status
+        const statusEl = document.getElementById('hist-status-humidity');
+        if (statusEl) {
+            let statusText, iconClass, statusClass;
+            if (humidity < bottom) {
+                statusText = 'Terlalu Kering';
+                iconClass = 'ph ph-warning-circle';
+                statusClass = 'status-dry';
+            } else if (humidity > top) {
+                statusText = 'Terlalu Lembap';
+                iconClass = 'ph ph-warning-circle';
+                statusClass = 'status-wet';
+            } else {
+                statusText = 'Ideal';
+                iconClass = 'ph ph-check-circle';
+                statusClass = 'status-ideal';
+            }
+            statusEl.className = `status-item ${statusClass}`;
+            statusEl.innerHTML = `<i class="${iconClass}"></i><span>Status: <strong>${statusText}</strong></span>`;
+        }
+
+        // Update misting status
+        const mistingEl = document.getElementById('hist-status-misting');
+        if (mistingEl) {
+            const mistText = misting ? 'ON' : 'OFF';
+            const mistColor = misting ? 'text-blue' : '';
+            mistingEl.innerHTML = `<i class="ph ph-cloud-rain ${mistColor}"></i><span>Misting: <strong>${mistText}</strong></span>`;
+        }
+    }
+
     function applyMetricFilter() {
         const metricSelect = document.getElementById('metric-select');
-        if (!metricSelect || !charts.historical) return;
+        if (!metricSelect) return;
 
         const val = metricSelect.value;
+        const humChart = charts.historicalHumidity;
+        const tempChart = charts.historicalTemp;
+        const humCard = document.getElementById('historicalHumidityChart')?.closest('.chart-card');
+        const tempCard = document.getElementById('historicalTempChart')?.closest('.chart-card');
+
         if (val === 'humidity') {
-            charts.historical.setDatasetVisibility(0, true);
-            charts.historical.setDatasetVisibility(1, false);
+            if (humCard) humCard.style.display = '';
+            if (tempCard) tempCard.style.display = 'none';
         } else if (val === 'temperature') {
-            charts.historical.setDatasetVisibility(0, false);
-            charts.historical.setDatasetVisibility(1, true);
+            if (humCard) humCard.style.display = 'none';
+            if (tempCard) tempCard.style.display = '';
         } else if (val === 'stability') {
-            charts.historical.setDatasetVisibility(0, false);
-            charts.historical.setDatasetVisibility(1, false);
+            if (humCard) humCard.style.display = 'none';
+            if (tempCard) tempCard.style.display = 'none';
             const stabilityTrendChart = document.getElementById('stabilityTrendChart');
             if (stabilityTrendChart) {
                 stabilityTrendChart.closest('.chart-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         } else {
-            charts.historical.setDatasetVisibility(0, true);
-            charts.historical.setDatasetVisibility(1, true);
+            // Show both
+            if (humCard) humCard.style.display = '';
+            if (tempCard) tempCard.style.display = '';
         }
-        charts.historical.update();
+
+        // Trigger resize so chart renders properly after show/hide
+        if (humChart && typeof humChart.resize === 'function') humChart.resize();
+        if (tempChart && typeof tempChart.resize === 'function') tempChart.resize();
     }
 
     // ─── Stability View Integration ─────────────────────────────
@@ -1446,8 +1727,18 @@ document.addEventListener('DOMContentLoaded', () => {
             link.addEventListener('click', () => {
                 const target = link.getAttribute('data-target');
 
-                if (target === 'analytics' && !analyticsLoaded) {
-                    setTimeout(() => fetchAnalyticsData('7d'), 100);
+                if (target === 'analytics') {
+                    // Always re-fetch analytics data when navigating to the tab
+                    // to ensure fresh data and proper chart rendering on visible canvas
+                    setTimeout(() => {
+                        // Sync period button active state with current period
+                        const periodBtns = document.querySelectorAll('#historical-period-filters button');
+                        periodBtns.forEach(b => b.classList.remove('active'));
+                        const activeBtn = document.querySelector(`#historical-period-filters button[data-period="${currentAnalyticsPeriod}"]`);
+                        if (activeBtn) activeBtn.classList.add('active');
+
+                        fetchAnalyticsData(currentAnalyticsPeriod);
+                    }, 100);
                 }
                 if (target === 'stability' && !stabilityLoaded) {
                     setTimeout(() => fetchStabilityData('4w'), 100);
@@ -1456,15 +1747,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ─── Period Filter Listeners ─────────────────────────────────
+    // ─── Period Filter Listeners (7H / 30H / 90H buttons) ────────
     const historicalFilters = document.querySelectorAll('#historical-period-filters button');
     if (historicalFilters.length > 0) {
         historicalFilters.forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
+                // 1. Update active state immediately
                 historicalFilters.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
+
                 const period = btn.getAttribute('data-period');
-                fetchAnalyticsData(period, true);
+
+                // 2. Show loading state on button
+                const originalText = btn.textContent;
+                btn.textContent = '...';
+                btn.disabled = true;
+
+                // 3. Fetch data for the selected period
+                await fetchAnalyticsData(period, true);
+
+                // 4. Restore button text and enable
+                btn.textContent = originalText;
+                btn.disabled = false;
             });
         });
     }
@@ -1812,8 +2116,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start data polling if we're on the dashboard page
     if (ENCLOSURE_ID && document.getElementById('rhRealtimeChart')) {
         fetchDashboardData();
-        fetchAnalyticsData('7d');
-        fetchStabilityData('4w');
+        // Defer analytics/stability fetch — these views are hidden at startup.
+        // Data will be loaded when user navigates to the view, or prefetch after a short delay
+        // so the data is ready when the user switches tabs.
+        setTimeout(() => {
+            fetchAnalyticsData('7d');
+            fetchStabilityData('4w');
+        }, 2000);
         pollInterval = setInterval(fetchDashboardData, 5000);
     }
 });

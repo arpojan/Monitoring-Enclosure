@@ -792,6 +792,49 @@ p {
     border-color: rgba(42, 157, 143, 0.3);
 }
 
+.btn-small:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Historical Status Bar */
+.historical-status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    align-items: center;
+}
+
+.historical-status-bar .status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.historical-status-bar .status-item i {
+    font-size: 1.15rem;
+}
+
+.historical-status-bar .status-item strong {
+    font-weight: 700;
+}
+
+.historical-status-bar .status-item small {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-left: 1px;
+}
+
+.historical-status-bar .status-item.status-ideal i { color: var(--accent-green); }
+.historical-status-bar .status-item.status-ideal strong { color: var(--accent-green); }
+.historical-status-bar .status-item.status-dry i { color: var(--danger); }
+.historical-status-bar .status-item.status-dry strong { color: var(--danger); }
+.historical-status-bar .status-item.status-wet i { color: var(--warning); }
+.historical-status-bar .status-item.status-wet strong { color: var(--warning); }
+
 /* Analytics View */
 .analytics-header {
     display: flex;

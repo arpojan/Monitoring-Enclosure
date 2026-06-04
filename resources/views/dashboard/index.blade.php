@@ -347,18 +347,52 @@
                         </div>
                     </div>
 
-                    <!-- Grafik Historis -->
+                    <!-- Status Ringkas Historis -->
+                    <div class="historical-status-bar glass-card" id="historical-status-bar">
+                        <div class="status-item">
+                            <i class="ph ph-drop text-teal"></i>
+                            <span>Kelembapan: <strong id="hist-current-rh">--</strong><small>%</small></span>
+                        </div>
+                        <div class="status-item">
+                            <i class="ph ph-thermometer text-blue"></i>
+                            <span>Suhu: <strong id="hist-current-temp">--</strong><small>°C</small></span>
+                        </div>
+                        <div class="status-item" id="hist-status-humidity">
+                            <i class="ph ph-minus-circle"></i>
+                            <span>Status: <strong>Memuat...</strong></span>
+                        </div>
+                        <div class="status-item" id="hist-status-misting">
+                            <i class="ph ph-cloud-rain"></i>
+                            <span>Misting: <strong>--</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Grafik Historis Kelembapan -->
                     <div class="chart-card glass-card mb-2">
                         <div class="card-header">
-                            <h2><i class="ph ph-chart-line text-blue"></i> Data Historis Suhu & Kelembapan</h2>
+                            <h2><i class="ph ph-drop text-teal"></i> Historis Kelembapan</h2>
                             <div class="card-actions" id="historical-period-filters">
-                                <button class="btn-small active" data-period="7d">7H</button>
-                                <button class="btn-small" data-period="30d">30H</button>
-                                <button class="btn-small" data-period="90d">90H</button>
+                                <button class="btn-small active" data-period="7d" data-range="7">7 Hari</button>
+                                <button class="btn-small" data-period="30d" data-range="30">30 Hari</button>
+                                <button class="btn-small" data-period="90d" data-range="90">90 Hari</button>
                             </div>
                         </div>
+                        <span id="hist-ideal-zone-label" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; display: inline-flex; align-items: center; gap: 4px;">
+                            <span style="display:inline-block; width:12px; height:12px; background:rgba(76, 175, 80, 0.2); border:1px solid rgba(76,175,80,1);"></span>
+                            Zona Ideal: {{ (int) round($config->bottom_humidity ?? 80) }}–{{ (int) round($config->top_humidity ?? 90) }}%
+                        </span>
                         <div class="chart-container large">
-                            <canvas id="historicalChart"></canvas>
+                            <canvas id="historicalHumidityChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Grafik Historis Suhu -->
+                    <div class="chart-card glass-card mb-2">
+                        <div class="card-header">
+                            <h2><i class="ph ph-thermometer text-blue"></i> Historis Suhu</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="historicalTempChart"></canvas>
                         </div>
                     </div>
 
