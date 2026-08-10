@@ -116,7 +116,27 @@ const API = {
         });
     },
 
+    /**
+     * POST /api/enclosures/{id}/analyze
+     * Picu analisis DSS (Stability Score + Insight + Recommendation).
+     * Hasilnya disimpan dengan status 'pending' — belum memengaruhi ESP32.
+     *
+     * @param {number} enclosureId
+     * @param {number} [hours=24] Jendela analisis dalam jam
+     */
+    async runDssAnalysis(enclosureId, hours = 24) {
+        return this.request(`/enclosures/${enclosureId}/analyze`, {
+            method: 'POST',
+            body: JSON.stringify({ hours })
+        });
+    },
+
     // --- Settings Endpoints ---
+    async triggerManualMist(enclosureId) {
+        return this.request(`/enclosures/${enclosureId}/mist/trigger`, {
+            method: 'POST'
+        });
+    },
     async updateEnclosure(enclosureId, data) {
         return this.request(`/enclosures/${enclosureId}`, {
             method: 'PUT',

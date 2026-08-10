@@ -93,12 +93,13 @@ class DashboardController extends Controller
         $logs = $enclosure->sensorLogs()
             ->where('logged_at', '>=', $config['since'])
             ->orderBy('logged_at', 'asc')
-            ->get(['temperature', 'humidity', 'misting_status', 'misting_duration_executed', 'logged_at']);
+            ->get(['temperature', 'humidity', 'misting_status', 'misting_duration_executed', 'logged_at', 'device_timestamp']);
 
         // Format untuk chart — array of objects dengan timestamp clean
+        // Gunakan device_timestamp (waktu ESP32) jika tersedia, fallback ke logged_at
         $chartData = $logs->map(fn ($log) => [
-            'time'           => $log->logged_at->format('H:i'),
-            'datetime'       => $log->logged_at->toIso8601String(),
+            'time'           => ($log->device_timestamp ?? $log->logged_at)->format('H:i'),
+            'datetime'       => ($log->device_timestamp ?? $log->logged_at)->toIso8601String(),
             'temperature'    => (float) $log->temperature,
             'humidity'       => (float) $log->humidity,
             'misting_status' => (bool)  $log->misting_status,
@@ -178,10 +179,11 @@ class DashboardController extends Controller
         $recentLogs = $enclosure->sensorLogs()
             ->where('logged_at', '>=', now()->subHour())
             ->orderBy('logged_at', 'asc')
-            ->get(['temperature', 'humidity', 'misting_status', 'misting_duration_executed', 'logged_at']);
+            ->get(['temperature', 'humidity', 'misting_status', 'misting_duration_executed', 'logged_at', 'device_timestamp']);
 
+        // Gunakan device_timestamp (waktu ESP32) jika tersedia, fallback ke logged_at
         $chartData = $recentLogs->map(fn ($log) => [
-            'time'        => $log->logged_at->format('H:i'),
+            'time'        => ($log->device_timestamp ?? $log->logged_at)->format('H:i'),
             'temperature' => (float) $log->temperature,
             'humidity'    => (float) $log->humidity,
             'misting'     => (bool) $log->misting_status,
@@ -189,6 +191,7 @@ class DashboardController extends Controller
         ]);
 
         $events = $enclosure->eventTimelines()
+            ->where('created_at', '>=', now()->subHours(24))
             ->latest('created_at')
             ->take(5)
             ->get()
@@ -305,9 +308,10 @@ class DashboardController extends Controller
         $timeInRange = $totalLogs > 0 ? round(($inRangeCount / $totalLogs) * 100, 1) : 0;
 
         // ── Historical Chart Data ──
+        // Gunakan device_timestamp (waktu ESP32) jika tersedia, fallback ke logged_at
         $chartData = $logs->map(fn ($log) => [
-            'time'        => $log->logged_at->format($period === '24h' ? 'H:i' : 'd/m H:i'),
-            'datetime'    => $log->logged_at->toIso8601String(),
+            'time'        => ($log->device_timestamp ?? $log->logged_at)->format($period === '24h' ? 'H:i' : 'd/m H:i'),
+            'datetime'    => ($log->device_timestamp ?? $log->logged_at)->toIso8601String(),
             'temperature' => (float) $log->temperature,
             'humidity'    => (float) $log->humidity,
             'misting'     => (bool) $log->misting_status,

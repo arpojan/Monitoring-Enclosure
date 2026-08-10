@@ -19,21 +19,35 @@
             <h2>Sistem Kandang Pintar</h2>
             <p>Sistem Pendukung Keputusan</p>
             
+            @if ($errors->any())
+                <div class="alert-error">
+                    <ul>
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <!-- Ubah action mengarah ke route login -->
             <form action="{{ route('login.post') }}" method="POST">
                 @csrf
                 <div class="input-group">
                     <i class="ph ph-envelope"></i>
-                    <input type="email" name="email" placeholder="Email" required value="user1@testing.com">
+                    <input type="email" name="email" placeholder="Email" required value="{{ old('email') }}">
                 </div>
                 <div class="input-group">
                     <i class="ph ph-lock"></i>
-                    <input type="password" name="password" placeholder="Kata Sandi" required value="password123">
+                    <input type="password" name="password" placeholder="Kata Sandi" required>
                 </div>
                 <button type="submit" class="btn-primary">Masuk</button>
             </form>
             <div class="login-footer">
                 <a href="#">Lupa kata sandi?</a>
+                <div class="login-register-link">
+                    <span>Belum punya akun?</span>
+                    <a href="{{ route('register') }}" class="register-link">Buat Akun</a>
+                </div>
             </div>
         </div>
         <div class="login-bg-decoration"></div>

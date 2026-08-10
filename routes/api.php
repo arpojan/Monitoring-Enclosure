@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TelemetryController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DssController;
 use App\Http\Controllers\Api\EnclosureController;
 use App\Http\Controllers\Api\RecommendationController;
 
@@ -31,12 +32,21 @@ Route::prefix('enclosures/{id}')->group(function () {
     Route::get('/analytics', [DashboardController::class, 'analytics']);
     Route::get('/stability', [DashboardController::class, 'stability']);
 
+    // ─── AI DSS Engine ──────────────────────────────────────
+    // POST: Picu analisis DSS (Human-in-the-Loop: hasil disimpan sebagai 'pending').
+    // Dapat dipanggil manual via tombol dashboard ATAU terjadwal via artisan dss:analyze.
+    Route::post('/analyze', [DssController::class, 'analyze']);
+
     // ESP32 mengambil parameter rule-based dari web
     Route::get('/control-config', [EnclosureController::class, 'controlConfig']);
 
     // Web mengubah parameter bottom/top/duration untuk ESP32
     Route::put('/parameters', [EnclosureController::class, 'updateParameters']);
 
+    // Trigger misting manual
+    Route::post('/mist/trigger', [EnclosureController::class, 'triggerManualMist']);
+
     // Update identitas enclosure
     Route::put('/', [EnclosureController::class, 'update']);
 });
+

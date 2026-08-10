@@ -1,14 +1,16 @@
 """
-Smart Enclosure — ESP32 Telemetry Simulator (Kandang 1)
+Smart Enclosure — ESP32 Telemetry Simulator (Kandang 2)
 =======================================================
 
-Simulator ini mewakili kondisi NORMAL:
-- Dry-Out Period: Pukul 08:00 - 20:00 (12 Jam)
-- Penurunan Kelembaban: 85% -> 60%
+Simulator ini mewakili kondisi EKSTREM (Panas Terik):
+- Suhu lebih tinggi.
+- Dry-Out Period: Pukul 08:00 - 16:00 (8 Jam)
+- Penurunan Kelembaban: 85% -> 50%
 - Aturan Darurat: Jika kelembaban <= 50%, misting aktif otomatis.
+- Terdapat Cooldown antar misting.
 
 Cara menjalankan:
-    python telemetry_simulator.py
+    python telemetry_simulator_2.py
 """
 
 import random
@@ -20,7 +22,7 @@ import requests
 
 # ─── Konfigurasi ──────────────────────────────────────────────
 BASE_URL = "http://localhost:8000/api"
-ENCLOSURE_ID = 1
+ENCLOSURE_ID = 2
 INTERVAL = 10  # detik
 DEVICE_KEY = None
 
@@ -29,7 +31,7 @@ CRITICAL_TEMP_HIGH = 31.0  # Memicu evaporative cooling darurat jika kelembaban 
 CRITICAL_HUMID_LOW = 50.0  # Titik kritis penguapan hari terik
 
 # ─── State Simulasi ESP32 ─────────────────────────────────────
-current_temp = 25.0
+current_temp = 27.0
 current_humidity = 85.0
 misting_active = False
 misting_started_at = None
@@ -44,9 +46,9 @@ spike_target_humidity = 0.0
 spike_end_time = None
 
 last_config = {
-    "bottom_humidity": 82.0,
-    "top_humidity": 92.0,
-    "misting_duration_seconds": 10,
+    "bottom_humidity": 80.0,
+    "top_humidity": 90.0,
+    "misting_duration_seconds": 15,
     "mode": "auto",
 }
 
@@ -83,7 +85,7 @@ cooling_temp_offset = 0.0
 cooling_end_time = None
 
 def evaluate_rule_based_control():
-    global misting_active, misting_started_at, last_misting_duration_run, last_misting_ended_at
+    global misting_active, misting_started_at, last_misting_ended_at, last_misting_duration_run
     global spike_active, spike_target_humidity, spike_end_time
     global cooling_active, cooling_temp_offset, cooling_end_time
 
@@ -105,7 +107,8 @@ def evaluate_rule_based_control():
     if last_config.get("mode") != "auto" and not misting_active:
         return
 
-    # Rule Darurat Tambahan: Suhu Kritis (Suhu > 31°C dan Kelembaban < 55%)
+    # Rule Darurat Tambahan: Suhu Kritis Ekstrem (Suhu > 31°C dan Kelembaban < 55%)
+    # Mengabaikan cooldown jika kondisi darurat!
     if current_temp > CRITICAL_TEMP_HIGH and current_humidity < 55.0 and not misting_active:
         misting_active = True
         misting_started_at = now
@@ -124,15 +127,14 @@ def evaluate_rule_based_control():
         return
 
     if misting_active:
-        # Gunakan durasi darurat jika ada, jika tidak gunakan dari config
         run_duration = last_misting_duration_run if last_misting_duration_run > 0 else config_duration
         duration_reached = misting_started_at is not None and (now - misting_started_at) >= run_duration
         
         if current_humidity >= top or duration_reached:
-            # Selesai misting, hitung parameter Misting Spike dan Cooling
             misting_active = False
             misting_started_at = None
             last_misting_ended_at = now
+            
             actual_dur = run_duration
             
             # 1. Hitung Evaporative Cooling
@@ -153,7 +155,7 @@ def evaluate_rule_based_control():
             cooling_temp_offset = c_drop
             cooling_end_time = now + (c_time_mins * 60)
             
-            # 2. Hitung target spike kelembaban
+            # 2. Misting Spike Logic
             if actual_dur <= 10:
                 spike_target = random.uniform(75, 80)
                 spike_time_mins = random.uniform(1, 2)
@@ -175,10 +177,9 @@ def evaluate_rule_based_control():
             last_misting_duration_run = 0
         return
 
-    # Hitung apakah masih dalam periode cooldown
+    # Normal Rule + Cooldown
     is_in_cooldown = last_misting_ended_at is not None and (now - last_misting_ended_at) < COOLDOWN_SECONDS
 
-    # Rule Normal
     if current_humidity <= bottom and not is_in_cooldown:
         misting_active = True
         misting_started_at = now
@@ -193,17 +194,24 @@ def simulate_environment():
     time_float = hour + (minute / 60.0)
     now = time.monotonic()
 
-    # --- Kurva Suhu & Kelembaban (Real Time) ---
-    if 8.0 <= time_float < 14.0:
-        # Pagi ke Siang
-        progress = (time_float - 8.0) / 6.0
-        base_temp = 24.0 + (progress * 6.0) # 24 -> 30
-        base_hum = 85.0 - (progress * 25.0) # 85 -> 60
-    elif 14.0 <= time_float < 20.0:
-        # Siang ke Malam
-        progress = (time_float - 14.0) / 6.0
-        base_temp = 30.0 - (progress * 4.0) # 30 -> 26
-        base_hum = 60.0 + (progress * 25.0) # 60 -> 85
+    # --- Kurva Suhu & Kelembaban Ekstrem (Real Time) ---
+    # Extreme Day: 08:00 - 16:00 (8 Jam)
+    if 8.0 <= time_float < 16.0:
+        # Pagi ke Siang Terik (08:00 - 13:00)
+        if time_float <= 13.0:
+            progress = (time_float - 8.0) / 5.0
+            base_temp = 25.0 + (progress * 10.0) # 25 -> 35
+            base_hum = 85.0 - (progress * 35.0)  # 85 -> 50
+        else:
+            # Siang ke Sore (13:00 - 16:00)
+            progress = (time_float - 13.0) / 3.0
+            base_temp = 35.0 - (progress * 5.0)  # 35 -> 30
+            base_hum = 50.0 + (progress * 20.0)  # 50 -> 70
+    elif 16.0 <= time_float < 20.0:
+        # Sore ke Malam (16:00 - 20:00)
+        progress = (time_float - 16.0) / 4.0
+        base_temp = 30.0 - (progress * 5.0)      # 30 -> 25
+        base_hum = 70.0 + (progress * 15.0)      # 70 -> 85
     else:
         # Malam Hari (Hutan Tropis) — kurva halus berbasis waktu
         # Suhu bergerak perlahan antara 22.0 - 25.0°C mengikuti pola sinusoidal
@@ -213,7 +221,7 @@ def simulate_environment():
         base_hum = 90.0 + 5.0 * math.sin(night_progress * math.pi * 0.5)  # 85.0 - 95.0
     
     current_temp = base_temp
-    
+
     # Terapkan Evaporative Cooling jika aktif
     if cooling_active:
         if now <= cooling_end_time:
@@ -222,11 +230,11 @@ def simulate_environment():
             cooling_active = False
 
     # Tambah noise ke suhu
-    current_temp += random.uniform(-0.1, 0.1)
+    current_temp += random.uniform(-0.15, 0.15)
 
     if misting_active:
         current_humidity += random.uniform(0.5, 1.0)
-        current_temp -= random.uniform(0.05, 0.1)
+        current_temp -= random.uniform(0.1, 0.2)
     elif spike_active:
         if now <= spike_end_time and current_humidity < spike_target_humidity:
             time_remaining = max(1.0, spike_end_time - now)
@@ -235,12 +243,10 @@ def simulate_environment():
         else:
             spike_active = False
     else:
-        # Natural Drift menuju Base Humidity
+        # Natural Drift menuju Base Humidity Ekstrem (Lebih cepat mengering)
         hum_diff = base_hum - current_humidity
-        # Rate disesuaikan agar perubahan perlahan namun pasti mengikuti kurva waktu
-        # Dalam waktu nyata, kita tidak memaksa drop yang sangat cepat
-        current_humidity += (hum_diff * 0.05) 
-        current_humidity += random.uniform(-0.2, 0.2)
+        current_humidity += (hum_diff * 0.08) 
+        current_humidity += random.uniform(-0.3, 0.3)
 
     # Batasi nilai logika
     current_humidity = max(30.0, min(100.0, current_humidity))
@@ -264,9 +270,9 @@ def send_telemetry():
 
 def main():
     print("=" * 72)
-    print("  Smart Enclosure — Simulator Kandang 1 (Normal Day)")
+    print("  Smart Enclosure — Simulator Kandang 2 (Extreme Day)")
     print("=" * 72)
-    print("  Mode     : Dry-out 12 jam (08:00 - 20:00)")
+    print("  Mode     : Dry-out 8 jam (08:00 - 16:00)")
     print("  Interval : 10s")
     print("=" * 72)
 
@@ -294,7 +300,6 @@ def main():
             time_since_last = time.monotonic() - last_misting_ended_at
             if time_since_last < COOLDOWN_SECONDS:
                 remains = int(COOLDOWN_SECONDS - time_since_last)
-                # Tampilkan cooldown dalam format jam:menit:detik
                 h = remains // 3600
                 m = (remains % 3600) // 60
                 s = remains % 60

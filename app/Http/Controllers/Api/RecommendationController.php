@@ -31,13 +31,18 @@ class RecommendationController extends Controller
 
         if (
             $recommendation->recommended_bottom_rh === null ||
-            $recommendation->recommended_top_rh === null ||
-            $recommendation->recommended_duration === null
+            $recommendation->recommended_top_rh === null
         ) {
             return response()->json([
                 'success' => false,
                 'message' => 'Recommendation does not contain complete control parameters',
             ], 422);
+        }
+
+        // Fallback: jika AI tidak menyarankan durasi baru, gunakan durasi saat ini
+        $currentParams = $recommendation->enclosure->parameters;
+        if ($recommendation->recommended_duration === null) {
+            $recommendation->recommended_duration = $currentParams?->misting_duration_seconds ?? 10;
         }
 
         if ((float) $recommendation->recommended_bottom_rh >= (float) $recommendation->recommended_top_rh) {

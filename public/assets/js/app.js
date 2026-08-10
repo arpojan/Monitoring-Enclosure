@@ -1,4 +1,97 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Notification Manager ---
+    window.NotificationManager = {
+        notifications: JSON.parse(localStorage.getItem('dashboard_notifications')) || [],
+        bellBtn: document.getElementById('bell-icon-btn'),
+        panel: document.getElementById('notification-panel'),
+        badge: document.getElementById('notification-badge'),
+        list: document.getElementById('notification-list'),
+        clearBtn: document.getElementById('clear-notifications-btn'),
+
+        init() {
+            this.render();
+            if(this.bellBtn && this.panel) {
+                this.bellBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.panel.style.display = this.panel.style.display === 'none' ? 'block' : 'none';
+                });
+                document.addEventListener('click', (e) => {
+                    if (!this.panel.contains(e.target) && e.target !== this.bellBtn && !this.bellBtn.contains(e.target)) {
+                        this.panel.style.display = 'none';
+                    }
+                });
+            }
+            if(this.clearBtn) {
+                this.clearBtn.addEventListener('click', () => {
+                    this.notifications.forEach(n => n.read = true);
+                    this.save();
+                    this.render();
+                });
+            }
+        },
+
+        add(title, message, type = 'info') {
+            const id = Date.now().toString();
+            this.notifications.unshift({ id, title, message, type, read: false, time: new Date().toLocaleTimeString() });
+            // keep only last 20
+            if(this.notifications.length > 20) this.notifications.pop();
+            this.save();
+            this.render();
+            
+            // Tampilkan juga sebagai Toast jika fungsi ada
+            if(typeof showNotificationToast === 'function') {
+                showNotificationToast(title, message);
+            }
+        },
+
+        save() {
+            localStorage.setItem('dashboard_notifications', JSON.stringify(this.notifications));
+        },
+
+        render() {
+            if(!this.badge || !this.list) return;
+            const unreadCount = this.notifications.filter(n => !n.read).length;
+            
+            if (unreadCount > 0) {
+                this.badge.style.display = 'block';
+                this.badge.textContent = unreadCount;
+            } else {
+                this.badge.style.display = 'none';
+            }
+
+            this.list.innerHTML = '';
+            if (this.notifications.length === 0) {
+                this.list.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 1rem 0;">Belum ada notifikasi</div>';
+                return;
+            }
+
+            this.notifications.forEach(n => {
+                let icon = 'ph-info';
+                let color = 'var(--teal)';
+                if (n.type === 'warning') { icon = 'ph-warning'; color = 'var(--warning-color)'; }
+                if (n.type === 'critical') { icon = 'ph-warning-octagon'; color = 'var(--danger-color)'; }
+
+                const item = document.createElement('div');
+                item.style.cssText = `display: flex; gap: 10px; padding: 10px; border-radius: 8px; background: ${n.read ? 'transparent' : 'rgba(255,255,255,0.05)'}; border-left: 3px solid ${n.read ? 'transparent' : color}; cursor: pointer;`;
+                item.innerHTML = `
+                    <div style="color: ${color}; font-size: 1.2rem; margin-top: 2px;"><i class="ph ${icon}"></i></div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500; font-size: 0.9rem; margin-bottom: 2px;">${n.title}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">${n.message}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 5px;">${n.time}</div>
+                    </div>
+                `;
+                item.addEventListener('click', () => {
+                    n.read = true;
+                    this.save();
+                    this.render();
+                });
+                this.list.appendChild(item);
+            });
+        }
+    };
+    
+    window.NotificationManager.init();
 
     // --- State & Navigation ---
     const loginForm = document.getElementById('login-form');
@@ -105,8 +198,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         destroyAllCharts();
                     }, 300);
 
-                    if (window.innerWidth <= 768 && sidebar) {
-                        sidebar.classList.remove('open');
+                    if (window.innerWidth <= 768) {
+                        closeSidebar();
                     }
                     return;
                 }
@@ -135,22 +228,65 @@ document.addEventListener('DOMContentLoaded', () => {
                     initCharts();
                 }, 50);
 
-                // Close mobile menu if open
-                if (window.innerWidth <= 768 && sidebar) {
-                    sidebar.classList.remove('open');
+                // Close mobile sidebar after navigation
+                if (window.innerWidth <= 768) {
+                    closeSidebar();
                 }
             });
         });
     }
 
-    // Mobile Menu Toggle
+    // ─── Mobile Sidebar Toggle ────────────────────────────────────
+    //
+    // On mobile (≤768px) the sidebar slides in from the left.
+    // We also show a dark overlay behind it and lock page scroll
+    // so the user cannot accidentally scroll the content underneath.
+
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+    /** Open sidebar + overlay, lock scroll */
+    function openSidebar() {
+        if (!sidebar) return;
+        sidebar.classList.add('open');
+        if (sidebarOverlay) sidebarOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden'; // Prevent background scroll
+    }
+
+    /** Close sidebar + overlay, restore scroll */
+    function closeSidebar() {
+        if (!sidebar) return;
+        sidebar.classList.remove('open');
+        if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+        document.body.style.overflow = ''; // Restore scroll
+    }
+
+    // Hamburger / close button toggles
     if (menuToggles.length > 0 && sidebar) {
         menuToggles.forEach(toggle => {
             toggle.addEventListener('click', () => {
-                sidebar.classList.toggle('open');
+                sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
             });
         });
     }
+
+    // Tap on overlay → close
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+
+    // Escape key → close
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidebar && sidebar.classList.contains('open')) {
+            closeSidebar();
+        }
+    });
+
+    // Close sidebar when window is resized back to desktop
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            closeSidebar();
+        }
+    });
 
     // Range Sliders update values
     const sliders = [
@@ -283,11 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         plugins: {
             legend: {
-                position: 'top',
-                labels: {
-                    usePointStyle: true,
-                    boxWidth: 8
-                }
+                display: false
             },
             tooltip: {
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -384,6 +516,37 @@ document.addEventListener('DOMContentLoaded', () => {
         themeToggleBtn.addEventListener('click', () => {
             const currentTheme = document.documentElement.getAttribute('data-theme');
             setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        });
+    }
+
+    // --- Portrait Mode Toggle ---
+    const portraitToggleBtn = document.getElementById('portrait-toggle');
+    const portraitIcon = portraitToggleBtn ? portraitToggleBtn.querySelector('i') : null;
+
+    function setPortraitMode(isPortrait) {
+        if (isPortrait) {
+            document.body.classList.add('force-portrait');
+            localStorage.setItem('portrait_mode', 'true');
+            if (portraitIcon) portraitIcon.className = 'ph ph-device-mobile-camera'; // Active icon
+        } else {
+            document.body.classList.remove('force-portrait');
+            localStorage.setItem('portrait_mode', 'false');
+            if (portraitIcon) portraitIcon.className = 'ph ph-device-mobile'; // Inactive icon
+        }
+        
+        // Trigger a synthetic resize event so Chart.js recalculates its canvas widths
+        setTimeout(() => {
+            window.dispatchEvent(new Event('resize'));
+        }, 100);
+    }
+
+    const savedPortrait = localStorage.getItem('portrait_mode') === 'true';
+    setPortraitMode(savedPortrait);
+
+    if (portraitToggleBtn) {
+        portraitToggleBtn.addEventListener('click', () => {
+            const isCurrentlyPortrait = document.body.classList.contains('force-portrait');
+            setPortraitMode(!isCurrentlyPortrait);
         });
     }
 
@@ -906,6 +1069,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let pollInterval = null;
     let latestRecommendationId = null;
 
+    // --- Notification Trackers ---
+    let prevConnectionStatus = null;
+    let prevStabilityClass = null;
+    let prevTemp = null;
+    let prevHum = null;
+
     /**
      * Update dashboard metric cards with real API data.
      */
@@ -1085,14 +1254,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 `Top: ${rec.current_top_rh ?? '-'}% → ${rec.recommended_top_rh ?? '-'}%`,
                 `Durasi: ${rec.current_duration ?? '-'}s → ${rec.recommended_duration ?? '-'}s`,
             ].join(' | ');
-            recPanel.querySelector('.recommendation-text p').innerHTML = `${rec.description}<br><small style="color:var(--text-muted);">${detail}</small>`;
-            recPanel.querySelector('.btn-primary').removeAttribute('disabled');
-            recPanel.querySelector('.btn-primary').innerHTML = `<i class="ph ph-check"></i> Terapkan Rekomendasi AI`;
+
+            const recText = document.getElementById('dashboard-recommendation-text');
+            if (recText) {
+                recText.innerHTML = `${rec.description}<br><small style="color:var(--text-muted);">${detail}</small>`;
+            }
+
+            const applyBtn = document.getElementById('apply-dashboard-recommendation-btn');
+            if (applyBtn) {
+                applyBtn.removeAttribute('disabled');
+                applyBtn.innerHTML = `<i class="ph ph-check"></i> Terapkan Rekomendasi AI`;
+            }
+
+            const rejectBtn = document.getElementById('reject-dashboard-recommendation-btn');
+            if (rejectBtn) {
+                rejectBtn.removeAttribute('disabled');
+            }
+
         } else if (recPanel) {
             latestRecommendationId = null;
-            recPanel.querySelector('.recommendation-text p').textContent = "Tidak ada tindakan yang direkomendasikan saat ini.";
-            recPanel.querySelector('.btn-primary').setAttribute('disabled', 'true');
-            recPanel.querySelector('.btn-primary').innerHTML = `<i class="ph ph-check"></i> Menunggu Saran`;
+
+            const recText = document.getElementById('dashboard-recommendation-text');
+            if (recText) recText.textContent = 'Tidak ada tindakan yang direkomendasikan saat ini.';
+
+            const applyBtn = document.getElementById('apply-dashboard-recommendation-btn');
+            if (applyBtn) {
+                applyBtn.setAttribute('disabled', 'true');
+                applyBtn.innerHTML = `<i class="ph ph-check"></i> Menunggu Saran`;
+            }
+
+            const rejectBtn = document.getElementById('reject-dashboard-recommendation-btn');
+            if (rejectBtn) rejectBtn.setAttribute('disabled', 'true');
         }
 
         // Event Timeline
@@ -1109,6 +1301,71 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (timeline) {
             timeline.innerHTML = `<div class="timeline-item"><div class="timeline-time">-</div><div class="timeline-desc">Belum ada kejadian tercatat</div></div>`;
         }
+
+        // --- Anomaly Detection for Notifications ---
+        if (typeof window.NotificationManager !== 'undefined') {
+            // 1. Connection Tracker
+            if (data.enclosure) {
+                const isOnline = data.enclosure.system_status === 'online';
+                if (prevConnectionStatus !== null && prevConnectionStatus !== isOnline) {
+                    if (isOnline) {
+                        window.NotificationManager.add('Sistem Terhubung', 'Koneksi ke perangkat kandang berhasil dipulihkan.', 'success');
+                    } else {
+                        window.NotificationManager.add('Sistem Terputus!', 'Kehilangan koneksi ke perangkat kandang. Sistem offline.', 'critical');
+                    }
+                }
+                prevConnectionStatus = isOnline;
+            }
+
+            // 2. Stability Tracker
+            if (data.stability) {
+                const score = parseFloat(data.stability.final_score);
+                const colorClass = score >= 85 ? 'text-green' : score >= 70 ? 'text-blue' : score >= 50 ? 'text-warning' : 'text-red';
+                if (prevStabilityClass !== null && prevStabilityClass !== colorClass) {
+                    let type = (colorClass === 'text-warning' || colorClass === 'text-red') ? 'warning' : 'info';
+                    window.NotificationManager.add(
+                        'Perubahan Status Lingkungan', 
+                        `Status kandang berubah menjadi: ${data.stability.status} (${Math.round(score)}/100).`, 
+                        type
+                    );
+                }
+                prevStabilityClass = colorClass;
+            }
+
+            // 3. Temp/Hum Tracker (1.5C and 10% thresholds)
+            if (data.telemetry) {
+                const currT = parseFloat(data.telemetry.temperature);
+                const currH = parseFloat(data.telemetry.humidity);
+                
+                if (prevTemp !== null) {
+                    const diffT = currT - prevTemp;
+                    if (Math.abs(diffT) >= 1.5) {
+                        const dir = diffT > 0 ? 'Lonjakan' : 'Penurunan';
+                        window.NotificationManager.add(
+                            `${dir} Suhu Drastis!`, 
+                            `Suhu berubah drastis (Saat ini: ${currT.toFixed(1)}°C).`, 
+                            'warning'
+                        );
+                    }
+                }
+                
+                if (prevHum !== null) {
+                    const diffH = currH - prevHum;
+                    if (Math.abs(diffH) >= 10.0) {
+                        const dir = diffH > 0 ? 'Lonjakan' : 'Penurunan';
+                        window.NotificationManager.add(
+                            `${dir} Kelembaban Drastis!`, 
+                            `Kelembaban berubah drastis (Saat ini: ${currH.toFixed(1)}%).`, 
+                            'warning'
+                        );
+                    }
+                }
+                
+                prevTemp = currT;
+                prevHum = currH;
+            }
+        }
+
         } catch (err) {
             console.error("Error in updateDashboardCards:", err);
         }
@@ -1835,24 +2092,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            const originalHtml = exportBtn.innerHTML;
-            exportBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> <span>Mengekspor...</span>';
-            exportBtn.disabled = true;
-
-            setTimeout(() => {
-                exportBtn.innerHTML = originalHtml;
-                exportBtn.disabled = false;
-                if (typeof showNotificationToast === 'function') {
-                    showNotificationToast('Ekspor Berhasil', 'Laporan analitik enclosure berhasil diunduh sebagai PDF.');
-                } else {
-                    alert('Ekspor Berhasil! Laporan PDF berhasil diunduh.');
-                }
-            }, 1800);
-        });
-    }
-
     const stabilityFilters = document.querySelectorAll('#stability-period-filters button');
     if (stabilityFilters.length > 0) {
         stabilityFilters.forEach(btn => {
@@ -1984,7 +2223,92 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Control Parameter Form: bottom humidity, top humidity, misting duration
+    // ─── DSS: Run Analysis Button ────────────────────────────────
+    // "Analisis Sekarang" — memicu POST /api/enclosures/{id}/analyze
+    // Hasilnya disimpan dengan status 'pending' dan dashboard di-refresh.
+    const runDssBtn = document.getElementById('run-dss-analysis-btn');
+    if (runDssBtn) {
+        runDssBtn.addEventListener('click', async () => {
+            if (!ENCLOSURE_ID || typeof API === 'undefined') return;
+
+            const originalHtml = runDssBtn.innerHTML;
+            runDssBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Menganalisis...';
+            runDssBtn.disabled = true;
+
+            try {
+                const response = await API.runDssAnalysis(ENCLOSURE_ID, 24);
+
+                if (!response.success) {
+                    throw new Error(response.error || response.message || 'Analisis gagal');
+                }
+
+                // Refresh dashboard agar recommendation card ter-update dengan data baru
+                await fetchDashboardData();
+
+                const msg = response.data?.stability
+                    ? `Skor Stabilitas: ${Math.round(response.data.stability.final_stability_score)}/100 (${response.data.stability.status}).`
+                    : response.message;
+
+                showNotificationToast('Analisis Selesai', msg);
+            } catch (err) {
+                console.error('[DSS] Analysis failed:', err);
+                showNotificationToast('Analisis Gagal', err.message || 'Terjadi kesalahan saat menjalankan analisis AI.');
+            } finally {
+                runDssBtn.innerHTML = originalHtml;
+                runDssBtn.disabled = false;
+            }
+        });
+    }
+
+    // ─── DSS: Reject Recommendation Button ──────────────────────
+    // "Tolak" — memanggil POST /api/recommendations/{id}/reject
+    const rejectDashboardRecommendationBtn = document.getElementById('reject-dashboard-recommendation-btn');
+    if (rejectDashboardRecommendationBtn) {
+        rejectDashboardRecommendationBtn.addEventListener('click', async () => {
+            if (!latestRecommendationId || typeof API === 'undefined') return;
+
+            const originalHtml = rejectDashboardRecommendationBtn.innerHTML;
+            rejectDashboardRecommendationBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Menolak...';
+            rejectDashboardRecommendationBtn.disabled = true;
+
+            try {
+                const response = await API.rejectRecommendation(latestRecommendationId);
+                if (!response.success) throw new Error(response.error || response.message || 'Gagal menolak rekomendasi');
+
+                showNotificationToast('Rekomendasi Ditolak', 'Saran parameter AI telah ditolak. Parameter ESP32 tidak berubah.');
+                latestRecommendationId = null;
+
+                // Reset recommendation panel to no-recommendation state
+                const recText = document.getElementById('dashboard-recommendation-text');
+                const applyBtn = document.getElementById('apply-dashboard-recommendation-btn');
+                const rejectBtn = document.getElementById('reject-dashboard-recommendation-btn');
+                if (recText) recText.textContent = 'Tidak ada tindakan yang direkomendasikan saat ini.';
+                if (applyBtn) { applyBtn.setAttribute('disabled', 'true'); applyBtn.innerHTML = '<i class="ph ph-check"></i> Terapkan'; }
+                if (rejectBtn) { rejectBtn.setAttribute('disabled', 'true'); }
+
+            } catch (err) {
+                console.error('[DSS] Reject failed:', err);
+                showNotificationToast('Gagal', err.message || 'Terjadi kesalahan saat menolak rekomendasi.');
+            } finally {
+                rejectDashboardRecommendationBtn.innerHTML = originalHtml;
+                rejectDashboardRecommendationBtn.disabled = false;
+            }
+        });
+    }
+
+    // ─── Control Parameter Form ──────────────────────────────────
+    // Isolates form input state from polling updates.
+    //
+    // State flags (declared at top of DOMContentLoaded):
+    //   controlParametersDirty   — true while user has unsaved changes → polling skips field sync
+    //   controlParametersSaving  — true during the async save request   → polling also pauses
+    //
+    // The dirty flag is set on 'input', reset on:
+    //   (a) successful form save
+    //   (b) user abandons the form (all inputs blurred) after a 4-second debounce
+    //       This prevents the form from locking out polling indefinitely if the user
+    //       types something, changes their mind, and clicks elsewhere without saving.
+
     const controlParametersForm = document.getElementById('control-parameters-form');
     if (controlParametersForm) {
         const parameterInputs = [
@@ -1993,37 +2317,87 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('param-misting-duration')
         ].filter(Boolean);
 
+        // Visual indicator helpers
+        const dirtyIndicator = document.getElementById('form-dirty-indicator');
+        function setDirty(isDirty) {
+            controlParametersDirty = isDirty;
+            if (dirtyIndicator) {
+                dirtyIndicator.style.display = isDirty ? 'inline-flex' : 'none';
+            }
+        }
+
+        // Debounce timer for blur-based abandon detection
+        let abandonTimer = null;
+
+        /**
+         * When ALL parameter inputs have lost focus and no submit was triggered,
+         * reset the dirty flag after a short grace period.
+         * This prevents the form from permanently blocking polling after the user
+         * types something and then clicks away without saving.
+         */
+        function scheduleAbandonReset() {
+            clearTimeout(abandonTimer);
+            abandonTimer = setTimeout(() => {
+                // Check if any input is still focused before resetting
+                const anyFocused = parameterInputs.some(input => document.activeElement === input);
+                if (!anyFocused && controlParametersDirty && !controlParametersSaving) {
+                    setDirty(false);
+                    console.info('[Params] User abandoned form without saving. Polling resumed.');
+                }
+            }, 4000); // 4-second grace period — long enough to tab between fields
+        }
+
+        // Mark form dirty on any input change
         parameterInputs.forEach((input) => {
             input.addEventListener('input', () => {
-                controlParametersDirty = true;
+                setDirty(true);
+                clearTimeout(abandonTimer); // Cancel any pending reset while typing
+            });
+
+            // Start abandon-detection countdown when focus leaves an input
+            input.addEventListener('blur', () => {
+                scheduleAbandonReset();
+            });
+
+            // Cancel abandon-detection if focus re-enters a parameter field
+            input.addEventListener('focus', () => {
+                clearTimeout(abandonTimer);
             });
         });
 
+        // ── Form Submit Handler ──────────────────────────────────
         controlParametersForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!ENCLOSURE_ID || typeof API === 'undefined') return;
 
+            // Cancel any pending abandon-reset so it doesn't fire mid-save
+            clearTimeout(abandonTimer);
+
             const btn = document.getElementById('save-control-parameters-btn');
             const originalBtnHtml = btn.innerHTML;
             const bottomHumidity = parseFloat(document.getElementById('param-bottom-humidity').value);
-            const topHumidity = parseFloat(document.getElementById('param-top-humidity').value);
-            const duration = parseInt(document.getElementById('param-misting-duration').value, 10);
+            const topHumidity    = parseFloat(document.getElementById('param-top-humidity').value);
+            const duration       = parseInt(document.getElementById('param-misting-duration').value, 10);
 
+            // ── Client-side Validation ───────────────────────────
             if (Number.isNaN(bottomHumidity) || Number.isNaN(topHumidity) || Number.isNaN(duration)) {
                 showNotificationToast('Input Tidak Valid', 'Bottom humidity, top humidity, dan durasi wajib diisi.');
                 return;
             }
-
             if (bottomHumidity < 0 || bottomHumidity > 100 || topHumidity < 0 || topHumidity > 100) {
-                showNotificationToast('Input Tidak Valid', 'Kelembapan minimum dan maksimum harus berada dalam rentang 0-100%.');
+                showNotificationToast('Input Tidak Valid', 'Kelembapan harus berada dalam rentang 0–100%.');
                 return;
             }
-
             if (bottomHumidity >= topHumidity) {
                 showNotificationToast('Input Tidak Valid', 'Bottom humidity harus lebih kecil dari top humidity.');
                 return;
             }
+            if (duration < 1 || duration > 300) {
+                showNotificationToast('Input Tidak Valid', 'Durasi misting harus antara 1–300 detik.');
+                return;
+            }
 
+            // ── Save ─────────────────────────────────────────────
             btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Menyimpan...';
             btn.disabled = true;
             controlParametersSaving = true;
@@ -2031,26 +2405,32 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const response = await API.updateParameters(ENCLOSURE_ID, {
                     misting_bottom_threshold: bottomHumidity,
-                    misting_top_threshold: topHumidity,
+                    misting_top_threshold:    topHumidity,
                     misting_duration_seconds: duration,
-                    source: 'manual'
+                    source: 'manual',
                 });
 
-                if (!response.success) throw new Error(response.error || response.message || 'Gagal menyimpan parameter');
+                if (!response.success) {
+                    throw new Error(response.error || response.message || 'Gagal menyimpan parameter');
+                }
 
-                controlParametersDirty = false;
+                // ── Success: reset dirty flag + sync fields from saved data ──
+                setDirty(false);
 
                 if (response.data && response.data.parameters) {
                     const saved = response.data.parameters;
                     document.getElementById('param-bottom-humidity').value = parseFloat(saved.misting_bottom_threshold).toFixed(1);
-                    document.getElementById('param-top-humidity').value = parseFloat(saved.misting_top_threshold).toFixed(1);
+                    document.getElementById('param-top-humidity').value    = parseFloat(saved.misting_top_threshold).toFixed(1);
                     document.getElementById('param-misting-duration').value = saved.misting_duration_seconds || duration;
                 }
 
                 showNotificationToast('Parameter Tersimpan', 'Konfigurasi berhasil disimpan dan siap diambil ESP32.');
+
+                // Refresh dashboard cards so charts reflect the new thresholds immediately
                 await fetchDashboardData();
+
             } catch (err) {
-                console.error(err);
+                console.error('[Params] Save failed:', err);
                 showNotificationToast('Gagal', err.message || 'Terjadi kesalahan saat menyimpan parameter.');
             } finally {
                 controlParametersSaving = false;
@@ -2058,6 +2438,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.disabled = false;
             }
         });
+
+        // ── Manual Mist Trigger ──────────────────────────────────
+        const triggerManualMistBtn = document.getElementById('trigger-manual-mist-btn');
+        if (triggerManualMistBtn) {
+            triggerManualMistBtn.addEventListener('click', async () => {
+                if (!ENCLOSURE_ID || typeof API === 'undefined') return;
+
+                const originalBtnHtml = triggerManualMistBtn.innerHTML;
+                triggerManualMistBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Mengirim...';
+                triggerManualMistBtn.disabled = true;
+
+                try {
+                    const response = await API.triggerManualMist(ENCLOSURE_ID);
+                    if (!response.success) {
+                        throw new Error(response.error || response.message || 'Gagal mengirim perintah');
+                    }
+                    showNotificationToast('Perintah Terkirim', 'Instruksi misting manual telah dikirim ke perangkat.');
+                } catch (err) {
+                    console.error('[Manual Mist] Trigger failed:', err);
+                    showNotificationToast('Gagal', err.message || 'Terjadi kesalahan saat memicu misting.');
+                } finally {
+                    setTimeout(() => {
+                        triggerManualMistBtn.innerHTML = originalBtnHtml;
+                        triggerManualMistBtn.disabled = false;
+                    }, 1000);
+                }
+            });
+        }
     }
 
     // Enclosure Settings Form

@@ -15,9 +15,12 @@ class Enclosure extends Model
     protected $fillable = [
         'user_id',
         'name',
+        'image_path',
         'description',
         'species',
         'is_active',
+        'target_habitat',
+        'jenis_hewan',
         'last_seen_at',
         'device_key',
     ];
@@ -29,7 +32,7 @@ class Enclosure extends Model
 
     /**
      * Determine if the enclosure's ESP32 is online.
-     * Considers online if last_seen_at is within the last 5 minutes.
+     * Considers online if last_seen_at is within the last 1 minute.
      */
     public function isOnline(): bool
     {
@@ -37,7 +40,7 @@ class Enclosure extends Model
             return false;
         }
 
-        return $this->last_seen_at->greaterThan(now()->subMinutes(5));
+        return $this->last_seen_at->greaterThan(now()->subMinute());
     }
 
     public function user(): BelongsTo

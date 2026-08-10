@@ -8,6 +8,7 @@ use App\Models\EnclosureParameter;
 use App\Models\ParameterHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -41,6 +42,10 @@ class EnclosureController extends Controller
      *
      * Web/Laravel hanya menyimpan dan menyediakan konfigurasi.
      * ESP32 tetap menjadi eksekutor rule-based misting.
+     *
+     * Cache: Hasil di-cache selama 30 detik untuk mengurangi beban DB
+     * saat ESP32 polling setiap beberapa detik. Cache dibatalkan otomatis
+     * saat parameter diperbarui via updateParameters().
      */
     public function controlConfig(Request $request, int $id): JsonResponse
     {
@@ -49,21 +54,50 @@ class EnclosureController extends Controller
         if (!$enclosure->is_active) {
             return response()->json([
                 'success' => false,
-                'message' => 'Enclosure is not active',
+                'message' => 'Enclosure is not active.',
             ], 422);
         }
 
         if (!$this->isAuthorizedDevice($request, $enclosure)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized device',
+                'message' => 'Unauthorized device. Please check X-Device-Key header.',
             ], 401);
+        }
+
+        // Cache control_config selama 30 detik — ESP32 sering polling, cukup 1 DB query per 30 detik
+        $cacheKey = "control_config_enc_{$id}";
+        $config   = Cache::remember($cacheKey, 30, fn () => $this->formatControlConfig($enclosure));
+
+        // Cek apakah ada trigger misting manual
+        $manualMistKey = "manual_mist_trigger_{$id}";
+        if (Cache::pull($manualMistKey)) {
+            // Jika ada (sekaligus menghapusnya dengan pull), tambahkan flag force_mist_now
+            $config['force_mist_now'] = true;
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Control configuration fetched',
-            'data' => $this->formatControlConfig($enclosure),
+            'message' => 'Control configuration fetched.',
+            'data'    => $config,
+        ]);
+    }
+
+    /**
+     * Trigger manual misting dari web dashboard.
+     * Menyimpan status di cache agar diambil oleh ESP32 pada polling berikutnya.
+     */
+    public function triggerManualMist(int $id): JsonResponse
+    {
+        $enclosure = Enclosure::findOrFail($id);
+
+        // Simpan flag di cache selama 120 detik.
+        // Simulator polling setiap 60 detik (6 tick x 10 detik), jadi 120 detik aman agar tidak terlewat.
+        Cache::put("manual_mist_trigger_{$id}", true, 120);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Perintah misting manual telah dikirim ke perangkat.',
         ]);
     }
 
@@ -104,35 +138,38 @@ class EnclosureController extends Controller
             $parameters = EnclosureParameter::updateOrCreate(
                 ['enclosure_id' => $enclosure->id],
                 [
-                    'humidity_min' => $humidityMin,
-                    'humidity_max' => $humidityMax,
+                    'humidity_min'             => $humidityMin,
+                    'humidity_max'             => $humidityMax,
                     'misting_bottom_threshold' => $validated['misting_bottom_threshold'],
-                    'misting_top_threshold' => $validated['misting_top_threshold'],
+                    'misting_top_threshold'    => $validated['misting_top_threshold'],
                     'misting_duration_seconds' => $validated['misting_duration_seconds'],
-                    'is_misting_auto' => $validated['is_misting_auto'] ?? $old?->is_misting_auto ?? true,
+                    'is_misting_auto'          => $validated['is_misting_auto'] ?? $old?->is_misting_auto ?? true,
                 ]
             );
 
             ParameterHistory::create([
-                'enclosure_id' => $enclosure->id,
-                'recommendation_id' => $validated['recommendation_id'] ?? null,
-                'source' => $validated['source'] ?? 'manual',
-                'changed_by' => auth()->id(),
+                'enclosure_id'        => $enclosure->id,
+                'recommendation_id'   => $validated['recommendation_id'] ?? null,
+                'source'              => $validated['source'] ?? 'manual',
+                'changed_by'          => auth()->id(),
                 'old_bottom_humidity' => $old?->misting_bottom_threshold,
-                'old_top_humidity' => $old?->misting_top_threshold,
-                'old_duration_seconds' => $old?->misting_duration_seconds,
+                'old_top_humidity'    => $old?->misting_top_threshold,
+                'old_duration_seconds'=> $old?->misting_duration_seconds,
                 'new_bottom_humidity' => $parameters->misting_bottom_threshold,
-                'new_top_humidity' => $parameters->misting_top_threshold,
-                'new_duration_seconds' => $parameters->misting_duration_seconds,
-                'metadata' => [
-                    'humidity_min' => $parameters->humidity_min,
-                    'humidity_max' => $parameters->humidity_max,
+                'new_top_humidity'    => $parameters->misting_top_threshold,
+                'new_duration_seconds'=> $parameters->misting_duration_seconds,
+                'metadata'            => [
+                    'humidity_min'    => $parameters->humidity_min,
+                    'humidity_max'    => $parameters->humidity_max,
                     'is_misting_auto' => $parameters->is_misting_auto,
                 ],
             ]);
 
             return $parameters;
         });
+
+        // Hapus cache control_config agar ESP32 segera mendapat nilai baru
+        Cache::forget("control_config_enc_{$id}");
 
         return response()->json([
             'success' => true,
