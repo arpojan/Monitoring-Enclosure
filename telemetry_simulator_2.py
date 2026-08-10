@@ -58,6 +58,31 @@ def headers():
         h["X-DEVICE-KEY"] = DEVICE_KEY
     return h
 
+def restore_last_state():
+    """Ambil data telemetri terakhir dari API agar simulator melanjutkan
+    dari kondisi terakhir sebelum dimatikan, bukan dari nilai hardcoded."""
+    global current_temp, current_humidity
+    url = f"{BASE_URL}/enclosures/{ENCLOSURE_ID}/latest"
+    try:
+        response = requests.get(url, headers=headers(), timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            telemetry = data.get("data", {}).get("telemetry")
+            if telemetry:
+                current_temp = float(telemetry["temperature"])
+                current_humidity = float(telemetry["humidity"])
+                print(f"  ✅ State dipulihkan dari data terakhir:")
+                print(f"     Suhu: {current_temp:.2f}°C | RH: {current_humidity:.2f}%")
+                return True
+        print("  ⚠️  Tidak ada data terakhir di server. Menggunakan nilai default.")
+        return False
+    except requests.exceptions.ConnectionError:
+        print("  ⚠️  Server tidak tersedia. Menggunakan nilai default.")
+        return False
+    except Exception as exc:
+        print(f"  ⚠️  Gagal memulihkan state: {exc}. Menggunakan nilai default.")
+        return False
+
 def fetch_control_config():
     global last_config
     url = f"{BASE_URL}/enclosures/{ENCLOSURE_ID}/control-config"
@@ -276,6 +301,7 @@ def main():
     print("  Interval : 10s")
     print("=" * 72)
 
+    restore_last_state()
     fetch_control_config()
 
     tick = 0
