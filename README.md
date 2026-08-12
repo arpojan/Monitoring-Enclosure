@@ -1,6 +1,6 @@
 ﻿# RAP Enclosure DSS
 
-> **Smart Misting Monitoring & AI-Based Decision Support System for Dart Frog Vivarium**
+> **Smart Misting Monitoring & AI-Based Decision Support System for Vivarium**
 
 ![PHP](https://img.shields.io/badge/PHP-8.2+-777BB4?logo=php&logoColor=white)
 ![Laravel](https://img.shields.io/badge/Laravel-11-FF2D20?logo=laravel&logoColor=white)
