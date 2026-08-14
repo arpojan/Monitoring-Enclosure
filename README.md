@@ -1,4 +1,4 @@
-﻿# RAP Enclosure DSS
+﻿# Thesis
 
 > **Smart Misting Monitoring & AI-Based Decision Support System for Vivarium**
 
@@ -11,20 +11,20 @@
 
 ---
 
-## 📌 About This Project
+## About This Project
 
 **RAP Enclosure DSS** is a Laravel-based web dashboard for monitoring and configuring automated misting control in animal enclosures (vivariums). The system is designed for dart frog vivariums and integrates with **ESP32 microcontrollers** as the primary rule-based misting executor.
 
 The web application serves as:
-- 📊 **Monitoring Dashboard** — real-time telemetry, humidity & temperature trends
-- ⚙️ **Configuration Panel** — misting threshold & duration parameters
-- 🤖 **AI-Based DSS** — Decision Support System with actionable recommendations
+- **Monitoring Dashboard** — real-time telemetry, humidity & temperature trends
+- **Configuration Panel** — misting threshold & duration parameters
+- **AI-Based DSS** — Decision Support System with actionable recommendations
 
 > **Key Design Principle:** The web/Laravel layer is **not** the misting decision-maker. All ON/OFF misting logic is executed locally by the ESP32. Laravel receives, stores, analyzes, and suggests.
 
 ---
 
-## 🔄 System Architecture
+## System Architecture
 
 ```text
 ┌─────────────────────────────────────────────────┐
@@ -58,26 +58,26 @@ The web application serves as:
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---|---|
-| 🔐 **Authentication** | User login, registration, and session-based access |
-| 🏠 **Enclosure Selection** | Multi-enclosure support; user picks active vivarium on login |
-| 📡 **Real-Time Dashboard** | Live temperature, humidity, misting status, and connection state |
-| 🎚️ **Misting Parameters** | Configurable bottom/top humidity threshold and misting duration |
-| 📈 **Analytics** | Historical charts, misting cycles, humidity distribution, trend graphs |
-| 🏆 **Stability Score** | Computed from range compliance, variability, duration, and fluctuation penalty |
-| 🧠 **AI Insight Engine** | Auto-generated contextual insights based on sensor data patterns |
-| 💡 **AI Recommendations (DSS)** | Actionable parameter change suggestions with Human-in-the-Loop approval |
-| ✅ **Apply / Reject Workflow** | AI recommendations only take effect after explicit user approval |
-| 🕒 **Parameter History** | Full audit trail of every manual or AI-driven parameter change |
-| 🐍 **ESP32 Simulator** | Python script that mimics real ESP32 device for local development |
-| 🔑 **Device Key Auth** | Optional `X-DEVICE-KEY` header for securing ESP32-to-API communication |
+| **Authentication** | User login, registration, and session-based access |
+| **Enclosure Selection** | Multi-enclosure support; user picks active vivarium on login |
+| **Real-Time Dashboard** | Live temperature, humidity, misting status, and connection state |
+| **Misting Parameters** | Configurable bottom/top humidity threshold and misting duration |
+| **Analytics** | Historical charts, misting cycles, humidity distribution, trend graphs |
+| **Stability Score** | Computed from range compliance, variability, duration, and fluctuation penalty |
+| **AI Insight Engine** | Auto-generated contextual insights based on sensor data patterns |
+| **AI Recommendations (DSS)** | Actionable parameter change suggestions with Human-in-the-Loop approval |
+| **Apply / Reject Workflow** | AI recommendations only take effect after explicit user approval |
+| **Parameter History** | Full audit trail of every manual or AI-driven parameter change |
+| **ESP32 Simulator** | Python script that mimics real ESP32 device for local development |
+| **Device Key Auth** | Optional `X-DEVICE-KEY` header for securing ESP32-to-API communication |
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -92,7 +92,7 @@ The web application serves as:
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -105,7 +105,7 @@ Before you begin, ensure you have the following installed:
 
 ---
 
-## ⚡ Quick Start (Local Installation)
+## Quick Start (Local Installation)
 
 ### 1. Clone the Repository
 
@@ -174,7 +174,7 @@ The application will be available at: **http://localhost:8000**
 
 ---
 
-## 🐍 Running the ESP32 Simulator
+## Running the ESP32 Simulator
 
 If you don't have physical ESP32 hardware, use the included Python simulator to generate realistic telemetry:
 
@@ -204,7 +204,7 @@ The simulator mimics full ESP32 behavior:
 
 ---
 
-## 👥 Default Credentials
+## Default Credentials
 
 After running `php artisan migrate --seed`, use these credentials to log in:
 
@@ -223,7 +223,7 @@ After running `php artisan migrate --seed`, use these credentials to log in:
 
 ---
 
-## 🔌 API Endpoints
+## API Endpoints
 
 All API routes are prefixed with `/api`. For local development, no authentication token is required. Device identity is optionally verified via the `X-DEVICE-KEY` header.
 
@@ -326,7 +326,7 @@ Valid `source` values: `manual`, `ai_recommendation`, `system_default`
 
 ---
 
-## 🔒 Security: Device Key Authentication
+## Security: Device Key Authentication
 
 ESP32 devices can be authenticated using a device key. This is optional for local demo but recommended for production deployments:
 
@@ -339,7 +339,7 @@ X-DEVICE-KEY: your-secret-device-key
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 rap-enclosure-dss/
@@ -385,7 +385,7 @@ rap-enclosure-dss/
 
 ---
 
-## 🧠 AI DSS — How It Works
+## AI DSS — How It Works
 
 The Decision Support System follows a **Human-in-the-Loop** design, ensuring AI suggestions never auto-apply without user confirmation:
 
@@ -420,17 +420,7 @@ The Decision Support System follows a **Human-in-the-Loop** design, ensuring AI 
 
 ---
 
-## 📸 Screenshots
-
-> Add screenshots by uploading images to this repository and updating the paths below.
-
-| Real-Time Dashboard | Analytics Page | AI Recommendation |
-|---|---|---|
-| `[Add screenshot here]` | `[Add screenshot here]` | `[Add screenshot here]` |
-
----
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork this repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
@@ -442,16 +432,10 @@ If you modify the database schema, please include the appropriate migration file
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
 
 ---
-
-<div align="center">
-
-**RAP Enclosure DSS** · Built with ❤️ using Laravel 11 & ESP32
-
-*[YOUR_NAME] · [YOUR_INSTITUTION] · [YEAR]*
 
 </div>
