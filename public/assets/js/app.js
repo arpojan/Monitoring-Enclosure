@@ -1224,7 +1224,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // AI Insight Cards
+        // DSS Insight Cards
         const insightList = document.getElementById('dashboard-ai-insights');
         if (insightList && data.insight) {
             const ins = data.insight;
@@ -1235,7 +1235,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="insight-item ${insClass}">
                     <div class="insight-icon"><i class="ph ${insIcon}"></i></div>
                     <div class="insight-content">
-                        <h4>Interpretasi AI</h4>
+                        <h4>Interpretasi Analisis DSS</h4>
                         <p>${ins.description}</p>
                     </div>
                 </div>
@@ -1263,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const applyBtn = document.getElementById('apply-dashboard-recommendation-btn');
             if (applyBtn) {
                 applyBtn.removeAttribute('disabled');
-                applyBtn.innerHTML = `<i class="ph ph-check"></i> Terapkan Rekomendasi AI`;
+                applyBtn.innerHTML = `<i class="ph ph-check"></i> Terapkan Rekomendasi DSS`;
             }
 
             const rejectBtn = document.getElementById('reject-dashboard-recommendation-btn');
@@ -1413,12 +1413,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = response.data;
+
+            // ── Provisioning banner: tampil jika device belum pernah konek ──
+            const banner = document.getElementById('provisioning-banner');
+            if (banner) {
+                const hasData = data.telemetry !== null && data.telemetry !== undefined;
+                banner.style.display = hasData ? 'none' : 'flex';
+            }
+
             updateDashboardCards(data);
             updateRealtimeChart(data.chart);
         } catch (error) {
             console.error("fetchDashboardData error:", error);
         }
     }
+
 
     /**
      * Start polling dashboard data every 10 seconds.
@@ -2275,7 +2284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await API.rejectRecommendation(latestRecommendationId);
                 if (!response.success) throw new Error(response.error || response.message || 'Gagal menolak rekomendasi');
 
-                showNotificationToast('Rekomendasi Ditolak', 'Saran parameter AI telah ditolak. Parameter ESP32 tidak berubah.');
+                showNotificationToast('Rekomendasi Ditolak', 'Saran parameter DSS telah ditolak. Parameter saat ini tetap dipertahankan.');
                 latestRecommendationId = null;
 
                 // Reset recommendation panel to no-recommendation state

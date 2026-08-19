@@ -46,34 +46,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const animalHintText = animalHint?.querySelector('span');
 
     // Parse animal KB from PHP to JS
-    const animalKB = @json($animalKnowledgeBase ?? []);
+    const animalSpecies = @json($animalSpecies ?? []);
 
-    function updateHewanDropdown(habitatValue, selectedHewan, selectHewanEl, hintEl, hintTextEl) {
+    function updateHewanDropdown(categoryValue, selectedHewan, selectHewanEl, hintEl, hintTextEl) {
         selectHewanEl.innerHTML = '<option value="">-- Pilih Hewan --</option>';
         if (hintEl) hintEl.style.display = 'none';
         
-        if (habitatValue && animalKB[habitatValue]) {
+        if (categoryValue) {
             selectHewanEl.disabled = false;
-            Object.keys(animalKB[habitatValue]).forEach(species => {
-                const option = document.createElement('option');
-                option.value = species;
-                option.textContent = species;
-                if (species === selectedHewan) {
-                    option.selected = true;
+            let found = false;
+            Object.entries(animalSpecies).forEach(([key, config]) => {
+                if (config.category === categoryValue) {
+                    found = true;
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = config.name;
+                    if (key === selectedHewan) {
+                        option.selected = true;
+                    }
+                    selectHewanEl.appendChild(option);
                 }
-                selectHewanEl.appendChild(option);
             });
-            updateAnimalHint(habitatValue, selectedHewan, hintEl, hintTextEl);
+            if (found) {
+                updateAnimalHint(selectedHewan, hintEl, hintTextEl);
+            }
         } else {
             selectHewanEl.disabled = true;
         }
     }
 
-    function updateAnimalHint(habitat, hewan, hintEl, hintTextEl) {
+    function updateAnimalHint(hewanKey, hintEl, hintTextEl) {
         if (hintEl && hintTextEl) {
-            if (habitat && hewan && animalKB[habitat] && animalKB[habitat][hewan]) {
-                const config = animalKB[habitat][hewan];
-                hintTextEl.textContent = `Batas Ideal RH: ${config.min}% - ${config.max}%`;
+            if (hewanKey && animalSpecies[hewanKey]) {
+                const config = animalSpecies[hewanKey];
+                hintTextEl.textContent = `Batas Ideal RH: ${config.humidity.humid_ideal_min}% - ${config.humidity.humid_ideal_max}%`;
                 hintEl.style.display = 'block';
             } else {
                 hintEl.style.display = 'none';
@@ -87,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     selectHewan?.addEventListener('change', (e) => {
-        updateAnimalHint(selectHabitat.value, e.target.value, animalHint, animalHintText);
+        updateAnimalHint(e.target.value, animalHint, animalHintText);
     });
 
     editBtns.forEach(btn => {
@@ -95,10 +101,11 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             e.stopPropagation();
 
-            const id = btn.dataset.id;
-            const name = btn.dataset.name;
-            const habitat = btn.dataset.habitat;
-            const hewan = btn.dataset.hewan;
+            const id       = btn.dataset.id;
+            const name     = btn.dataset.name;
+            const habitat  = btn.dataset.habitat;
+            const hewan    = btn.dataset.hewan;
+            const devKey   = btn.dataset.deviceKey || '';
 
             if (inputId) inputId.value = id;
             if (inputName) inputName.value = name;
@@ -109,9 +116,110 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateHewanDropdown(habitat || '', hewan || '', selectHewan, animalHint, animalHintText);
             }
 
+            // ── Isi section Device Pairing ──
+            const displayEncId  = document.getElementById('display-enclosure-id');
+            const displayKey    = document.getElementById('display-device-key');
+            const regenForm     = document.getElementById('regenerate-key-form');
+            const neverConnected = btn.dataset.neverConnected === 'true';
+
+            // Simpan key asli sebagai atribut tersembunyi untuk toggle
+            if (displayKey) {
+                displayKey.dataset.fullKey = devKey;
+                displayKey.textContent = devKey ? '•'.repeat(Math.min(devKey.length, 24)) : '(belum di-generate)';
+            }
+            if (displayEncId) displayEncId.textContent = id;
+
+            // Set action form regenerate key
+            if (regenForm) {
+                regenForm.action = `/select-enclosure/${id}/regenerate-key`;
+            }
+
+            // Reset toggle state (key tersembunyi saat modal dibuka)
+            const toggleBtn = document.getElementById('toggle-device-key-btn');
+            if (toggleBtn) {
+                toggleBtn.querySelector('i').className = 'ph ph-eye';
+                toggleBtn.dataset.visible = '0';
+            }
+
             if (editModal) editModal.style.display = 'flex';
+
+            // Jika kandang belum pernah konek → auto-buka petunjuk pairing
+            if (neverConnected) {
+                const guide = document.getElementById('pairing-guide-details');
+                if (guide) {
+                    guide.open = true;
+                    setTimeout(() => guide.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
+                }
+            }
         });
     });
+
+    // ── Copy Enclosure ID ──
+    document.getElementById('copy-enclosure-id-btn')?.addEventListener('click', () => {
+        const val = document.getElementById('display-enclosure-id')?.textContent;
+        if (!val || val === '—') return;
+        navigator.clipboard.writeText(val).then(() => showCopyFeedback('copy-enclosure-id-btn'));
+    });
+
+    // ── Copy Server URL ──
+    document.getElementById('copy-server-url-btn')?.addEventListener('click', () => {
+        const val = document.getElementById('display-server-url')?.textContent?.trim();
+        if (!val) return;
+        navigator.clipboard.writeText(val).then(() => showCopyFeedback('copy-server-url-btn'));
+    });
+
+    // ── Copy Device Key ──
+    document.getElementById('copy-device-key-btn')?.addEventListener('click', () => {
+        const el = document.getElementById('display-device-key');
+        const key = el?.dataset.fullKey;
+        if (!key) return;
+        navigator.clipboard.writeText(key).then(() => showCopyFeedback('copy-device-key-btn'));
+    });
+
+    // ── Toggle Show/Hide Device Key ──
+    document.getElementById('toggle-device-key-btn')?.addEventListener('click', function() {
+        const el = document.getElementById('display-device-key');
+        const icon = this.querySelector('i');
+        if (!el) return;
+
+        if (this.dataset.visible === '1') {
+            el.textContent = '•'.repeat(Math.min((el.dataset.fullKey || '').length, 24));
+            icon.className = 'ph ph-eye';
+            this.dataset.visible = '0';
+        } else {
+            el.textContent = el.dataset.fullKey || '(belum ada)';
+            icon.className = 'ph ph-eye-slash';
+            this.dataset.visible = '1';
+        }
+    });
+
+    // ── Regenerate Key — konfirmasi dulu ──
+    document.getElementById('regenerate-key-btn')?.addEventListener('click', function() {
+        const confirmed = confirm(
+            '⚠️ Regenerate Device Key?\n\n' +
+            'ESP32 yang menggunakan key lama akan langsung ditolak (401).\n' +
+            'Anda harus memperbarui firmware setelah ini.\n\n' +
+            'Lanjutkan?'
+        );
+        if (confirmed) {
+            document.getElementById('regenerate-key-form')?.submit();
+        }
+    });
+
+    // Helper: feedback visual saat copy berhasil
+    function showCopyFeedback(btnId) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        const icon = btn.querySelector('i');
+        const orig = icon.className;
+        icon.className = 'ph ph-check';
+        btn.style.color = 'var(--accent-teal)';
+        setTimeout(() => {
+            icon.className = orig;
+            btn.style.color = '';
+        }, 1500);
+    }
+
 
     closeEditBtn?.addEventListener('click', () => {
         if (editModal) editModal.style.display = 'none';
@@ -163,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     addHewan?.addEventListener('change', (e) => {
-        updateAnimalHint(addHabitat.value, e.target.value, addHint, addHintText);
+        updateAnimalHint(e.target.value, addHint, addHintText);
     });
 
     // ==============================

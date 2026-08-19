@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DssController;
 use App\Http\Controllers\Api\EnclosureController;
 use App\Http\Controllers\Api\RecommendationController;
+use App\Http\Controllers\Api\DeviceConfigController;
 
 /*
 |--------------------------------------------------------------------------
@@ -17,8 +18,14 @@ use App\Http\Controllers\Api\RecommendationController;
 |
 */
 
-// ─── IoT Telemetry (ESP32 / Simulator) ──────────────────────
-Route::post('/telemetry', [TelemetryController::class, 'store']);
+// ─── IoT Telemetry (ESP32) ───────────────────────────────────
+// Dilindungi oleh AuthorizeDevice: wajib kirim X-Device-Key yang sesuai enclosure.
+Route::post('/telemetry', [TelemetryController::class, 'store'])
+    ->middleware('authorize.device');
+
+Route::get('/device/{device}/config', [DeviceConfigController::class, 'show'])
+    ->middleware('auth.device')
+    ->name('api.device.config');
 
 // ─── AI Recommendation Decision Actions ─────────────────────
 Route::post('/recommendations/{id}/apply', [RecommendationController::class, 'apply']);
@@ -37,8 +44,9 @@ Route::prefix('enclosures/{id}')->group(function () {
     // Dapat dipanggil manual via tombol dashboard ATAU terjadwal via artisan dss:analyze.
     Route::post('/analyze', [DssController::class, 'analyze']);
 
-    // ESP32 mengambil parameter rule-based dari web
-    Route::get('/control-config', [EnclosureController::class, 'controlConfig']);
+    // ESP32 mengambil parameter rule-based dari web (dilindungi device key)
+    Route::get('/control-config', [EnclosureController::class, 'controlConfig'])
+        ->middleware('authorize.device');
 
     // Web mengubah parameter bottom/top/duration untuk ESP32
     Route::put('/parameters', [EnclosureController::class, 'updateParameters']);

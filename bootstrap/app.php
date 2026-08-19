@@ -12,7 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        $middleware->alias([
+            'authorize.device' => \App\Http\Middleware\AuthorizeDevice::class,
+            'auth.device' => \App\Http\Middleware\AuthenticateDevice::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

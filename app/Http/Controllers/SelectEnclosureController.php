@@ -10,6 +10,7 @@ use App\Services\AnimalKnowledgeBase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class SelectEnclosureController extends Controller
 {
@@ -18,15 +19,17 @@ class SelectEnclosureController extends Controller
      */
     public function index()
     {
+        // Hanya tampilkan kandang milik user yang sedang login
         $enclosures = Enclosure::with([
             'parameters',
             'sensorLogs' => fn($q) => $q->orderByDesc('logged_at')->limit(1),
             'stabilityScores' => fn($q) => $q->orderByDesc('analyzed_date')->limit(1),
-        ])->get();
+        ])->where('user_id', auth()->id())->get();
 
-        $animalKnowledgeBase = AnimalKnowledgeBase::getAnimals();
+        $animalCategories = AnimalKnowledgeBase::getCategories();
+        $animalSpecies = AnimalKnowledgeBase::getSpecies();
 
-        return view('enclosure.select', compact('enclosures', 'animalKnowledgeBase'));
+        return view('enclosure.select', compact('enclosures', 'animalCategories', 'animalSpecies'));
     }
 
     /**
@@ -48,6 +51,7 @@ class SelectEnclosureController extends Controller
         $enclosure->name          = $request->name;
         $enclosure->target_habitat= $request->target_habitat;
         $enclosure->jenis_hewan   = $request->jenis_hewan;
+        $enclosure->species_key   = $request->jenis_hewan;
 
         if ($request->hasFile('image')) {
             if ($enclosure->image_path && Storage::disk('public')->exists($enclosure->image_path)) {
@@ -90,12 +94,31 @@ class SelectEnclosureController extends Controller
     }
 
     /**
+     * Regenerate device_key untuk enclosure tertentu.
+     * Hanya pemilik kandang yang boleh melakukan ini.
+     */
+    public function regenerateKey(int $id)
+    {
+        $enclosure = Enclosure::where('id', $id)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
+
+        $newKey = Str::random(32);
+        $enclosure->update(['device_key' => $newKey]);
+
+        return redirect()->route('enclosure.select')
+            ->with('success', 'Device key berhasil diperbarui.')
+            ->with('regenerated_enclosure_id', $id)
+            ->with('new_device_key', $newKey);
+    }
+
+    /**
      * Sesuaikan parameter kelembaban enclosure berdasarkan jenis hewan baru.
      * Dipanggil ketika jenis hewan berubah saat update.
      */
     private function adjustParametersForAnimal(Enclosure $enclosure, string $jenisHewan): void
     {
-        $config = AnimalKnowledgeBase::getSpeciesConfig($jenisHewan);
+        $config = AnimalKnowledgeBase::getSpeciesByKey($jenisHewan);
         if (!$config) {
             return;
         }
@@ -106,10 +129,10 @@ class SelectEnclosureController extends Controller
         }
 
         $oldParameters->update([
-            'humidity_min'             => $config['min'],
-            'humidity_max'             => $config['max'],
-            'misting_bottom_threshold' => $config['min'],
-            'misting_top_threshold'    => $config['max'],
+            'humidity_min'             => $config['humidity']['humid_ideal_min'],
+            'humidity_max'             => $config['humidity']['humid_ideal_max'],
+            'misting_bottom_threshold' => $config['humidity']['humid_ideal_min'],
+            'misting_top_threshold'    => $config['humidity']['humid_ideal_max'],
         ]);
 
         ParameterHistory::create([

@@ -1,4 +1,4 @@
-﻿# Thesis
+# RAP Enclosure DSS
 
 > **Smart Misting Monitoring & AI-Based Decision Support System for Vivarium**
 

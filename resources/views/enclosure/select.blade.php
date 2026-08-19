@@ -33,5 +33,24 @@
 </div>
 @endsection
 
+{{-- Auto-buka modal edit setelah regenerate key --}}
+@if(session('regenerated_enclosure_id'))
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const targetId = '{{ session('regenerated_enclosure_id') }}';
+    const btn = document.querySelector(`.edit-enclosure-btn[data-id="${targetId}"]`);
+    if (btn) {
+        // Trigger klik tombol edit kandang yang key-nya baru di-regenerate
+        btn.click();
+        // Scroll ke section key setelah modal terbuka
+        setTimeout(() => {
+            const keyEl = document.getElementById('display-device-key');
+            if (keyEl) keyEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 350);
+    }
+});
+</script>
+@endif
+
 {{-- Scripts --}}
 @include('enclosure.scripts.inline')

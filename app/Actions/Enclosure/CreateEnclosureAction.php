@@ -30,8 +30,10 @@ class CreateEnclosureAction
             $enclosure = Enclosure::create([
                 'user_id'        => auth()->id(),
                 'name'           => $data['name'],
+                'species'        => $data['jenis_hewan'] ?? $data['name'],
                 'target_habitat' => $data['target_habitat'] ?? null,
                 'jenis_hewan'    => $data['jenis_hewan']    ?? null,
+                'species_key'    => $data['jenis_hewan']    ?? null,
                 'image_path'     => $imagePath,
                 'device_key'     => Str::random(16),
                 'is_active'      => true,
@@ -71,9 +73,9 @@ class CreateEnclosureAction
     private function resolveDefaultHumidityRange(?string $jenisHewan): array
     {
         if ($jenisHewan) {
-            $config = AnimalKnowledgeBase::getSpeciesConfig($jenisHewan);
+            $config = AnimalKnowledgeBase::getSpeciesByKey($jenisHewan);
             if ($config) {
-                return [$config['min'], $config['max']];
+                return [$config['humidity']['humid_ideal_min'], $config['humidity']['humid_ideal_max']];
             }
         }
 

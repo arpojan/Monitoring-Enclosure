@@ -1,6 +1,19 @@
 {{-- resources/views/dashboard/views/dashboard.blade.php --}}
 <!-- View: Dashboard -->
 <div id="view-dashboard" class="page-view active">
+
+    {{-- Banner Onboarding: muncul jika device belum pernah konek --}}
+    <div id="provisioning-banner" style="display: none; background: linear-gradient(135deg, rgba(38,198,218,0.12), rgba(38,198,218,0.05)); border: 1px solid var(--accent-teal); border-radius: 12px; padding: 14px 18px; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+        <div style="font-size: 2rem; flex-shrink: 0;">📡</div>
+        <div style="flex: 1; min-width: 200px;">
+            <p style="margin: 0 0 2px 0; font-weight: 700; color: var(--text-primary); font-size: 0.9rem;">Perangkat ESP32 belum terhubung</p>
+            <p style="margin: 0; font-size: 0.78rem; color: var(--text-secondary);">Hubungkan ESP32 ke kandang ini lewat WiFi Provisioning untuk mulai memantau suhu &amp; kelembapan secara real-time.</p>
+        </div>
+        <a href="{{ route('enclosure.select') }}" style="flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--accent-teal); color: #fff; border-radius: 8px; font-size: 0.82rem; font-weight: 600; text-decoration: none; white-space: nowrap;">
+            <i class="ph ph-wifi-high"></i> Setup Perangkat
+        </a>
+    </div>
+
     <!-- 1 & 2. Summary Status & Stability Badge -->
     <div class="metrics-grid">
         <div class="metric-card glass-card grid-col-span-2" id="stability-metric-card" style="display: flex; align-items: center; gap: 15px;">
@@ -166,10 +179,10 @@
             </div>
         </div>
         
-        <!-- 7. AI Insight Cards -->
-        <div class="insight-card glass-card">
-            <div class="card-header">
-                <h2><i class="ph ph-magic-wand text-blue"></i> Temuan Cerdas AI</h2>
+        <!-- 7. DSS Insight Cards -->
+        <div class="metric-card glass-card" style="display: flex; flex-direction: column;">
+            <div class="section-header" style="margin-bottom: 1rem;">
+                <h2><i class="ph ph-magic-wand text-blue"></i> Temuan Analisis DSS</h2>
             </div>
             <div class="insight-list" id="dashboard-ai-insights">
                 <div class="insight-item info">
@@ -184,14 +197,14 @@
 
         <!-- 8. Recommendation System -->
         <div class="recommendation-card glass-card grid-col-span-3" id="dashboard-recommendation">
-            <div class="card-header">
-                <h2><i class="ph ph-lightbulb text-warning"></i> Saran Tindakan AI (Human-in-the-Loop)</h2>
+            <div class="section-header" style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                <h2><i class="ph ph-lightbulb text-warning"></i> Saran Tindakan DSS (Human-in-the-Loop)</h2>
                 {{-- Tombol untuk memicu analisis DSS secara manual --}}
                 <button
                     type="button"
                     id="run-dss-analysis-btn"
                     class="btn-small"
-                    title="Jalankan analisis AI sekarang untuk mendapatkan skor stabilitas dan rekomendasi terbaru."
+                    title="Jalankan analisis DSS sekarang untuk mendapatkan skor stabilitas dan rekomendasi terbaru."
                     style="display: inline-flex; align-items: center; gap: 5px;"
                 >
                     <i class="ph ph-brain"></i> Analisis Sekarang
@@ -210,9 +223,8 @@
                         <i class="ph ph-x"></i> Tolak
                     </button>
                 </div>
-                <p style="color: var(--text-muted); font-size: 0.8rem; margin: 8px 0 0 0;">
-                    <i class="ph ph-info"></i>
-                    AI hanya memberi saran. Parameter ESP32 hanya berubah setelah Anda klik <strong>Terapkan</strong>.
+                <p style="margin:0; font-size: 0.75rem; color: var(--text-muted);">
+                    DSS hanya memberi saran. Parameter ESP32 hanya berubah setelah Anda klik <strong>Terapkan</strong>.
                 </p>
             </div>
         </div>

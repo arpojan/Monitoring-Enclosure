@@ -16,13 +16,13 @@
             </div>
 
             <div style="margin-bottom: 1.5rem;">
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Kategori Habitat</label>
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Kategori Hewan</label>
                 <div class="input-group" style="margin-bottom: 0; padding: 0;">
-                    <i class="ph ph-mountains" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--accent-teal); font-size: 1.2rem; z-index: 10;"></i>
+                    <i class="ph ph-paw-prints" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--accent-teal); font-size: 1.2rem; z-index: 10;"></i>
                     <select name="target_habitat" id="add-enclosure-habitat" style="width: 100%; background: transparent; border: none; padding: 0.8rem 1rem 0.8rem 2.8rem; font-size: 1rem; color: var(--text-primary); cursor: pointer; appearance: none; outline: none; box-shadow: none;">
-                        <option value="">-- Pilih Habitat --</option>
-                        @foreach(array_keys($animalKnowledgeBase ?? []) as $habitat)
-                            <option value="{{ $habitat }}">{{ $habitat }}</option>
+                        <option value="">-- Pilih Kategori --</option>
+                        @foreach($animalCategories ?? [] as $key => $category)
+                            <option value="{{ $key }}">{{ $category }}</option>
                         @endforeach
                     </select>
                     <i class="ph ph-caret-down" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;"></i>

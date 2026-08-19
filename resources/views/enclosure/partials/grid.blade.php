@@ -32,25 +32,27 @@
 
             // Online status
             $isOnline = $enclosure->isOnline();
+            $neverConnected = is_null($enclosure->last_seen_at);
         @endphp
 
-        <a href="{{ route('dashboard', $enclosure->id) }}" class="text-decoration-none">
-            <div class="enclosure-card glass-card position-relative">
+        <div class="enclosure-card glass-card position-relative">
+            <button
+                type="button"
+                class="btn-icon edit-enclosure-btn"
+                data-id="{{ $enclosure->id }}"
+                data-name="{{ $enclosure->name }}"
+                data-habitat="{{ $enclosure->target_habitat }}"
+                data-hewan="{{ $enclosure->jenis_hewan }}"
+                data-device-key="{{ $enclosure->device_key }}"
+                data-never-connected="{{ $neverConnected ? 'true' : 'false' }}"
+                style="position: absolute; top: 15px; right: 15px; z-index: 10;"
+                title="Pengaturan Kandang"
+            >
+                <i class="ph ph-gear"></i>
+            </button>
 
-                <button
-                    type="button"
-                    class="btn-icon edit-enclosure-btn"
-                    data-id="{{ $enclosure->id }}"
-                    data-name="{{ $enclosure->name }}"
-                    data-habitat="{{ $enclosure->target_habitat }}"
-                    data-hewan="{{ $enclosure->jenis_hewan }}"
-                    style="position: absolute; top: 15px; right: 15px; z-index: 10;"
-                    title="Pengaturan Kandang"
-                >
-                    <i class="ph ph-gear"></i>
-                </button>
-
-                <div class="enclosure-icon" style="overflow: hidden; display: flex; align-items: center; justify-content: center;">
+            <a href="{{ route('dashboard', $enclosure->id) }}" class="text-decoration-none" style="display: block; color: inherit; width: 100%; height: 100%;">
+                <div class="enclosure-icon" style="overflow: hidden; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto;">
                     @if($enclosure->image_path)
                         <img src="{{ asset('storage/' . $enclosure->image_path) }}" alt="{{ $enclosure->name }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
                     @else
@@ -71,19 +73,26 @@
                     </div>
 
                     <div class="enclosure-meta">
+                        @if($neverConnected)
+                        <span class="online-indicator offline" style="color: var(--accent-teal); border-color: var(--accent-teal);">
+                            <span class="dot-sm" style="background: var(--accent-teal);"></span>
+                            Menunggu Setup
+                        </span>
+                        @else
                         <span class="online-indicator {{ $isOnline ? 'online' : 'offline' }}">
                             <span class="dot-sm {{ $isOnline ? 'pulse-green' : '' }}"></span>
                             {{ $isOnline ? 'Online' : 'Offline' }}
                         </span>
+                        @endif
                     </div>
 
                     <span class="status-badge {{ $badgeClass }}">
                         <i class="ph {{ $badgeIcon }}"></i> {{ $badgeText }}
                     </span>
                 </div>
+            </a>
+        </div>
 
-            </div>
-        </a>
     @endforeach
 
     <div class="enclosure-card glass-card add-new" id="btn-add-enclosure" style="cursor: pointer;">

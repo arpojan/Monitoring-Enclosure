@@ -21,6 +21,7 @@ class Enclosure extends Model
         'is_active',
         'target_habitat',
         'jenis_hewan',
+        'species_key',
         'last_seen_at',
         'device_key',
     ];

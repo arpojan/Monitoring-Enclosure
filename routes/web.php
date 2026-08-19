@@ -87,6 +87,11 @@ Route::post('/select-enclosure/post', [SelectEnclosureController::class, 'store'
 // POST: Buat kandang baru
 Route::post('/select-enclosure/create', [SelectEnclosureController::class, 'create'])->name('enclosure.select.create');
 
+// POST: Regenerate device key kandang (dilindungi auth)
+Route::post('/select-enclosure/{id}/regenerate-key', [SelectEnclosureController::class, 'regenerateKey'])
+    ->middleware('auth')
+    ->name('enclosure.regenerate-key');
+
 // ─── DASHBOARD ROUTES ─────────────────────────────────────────
 Route::get('/dashboard/{id?}', function ($id = null) {
     $enclosureName = 'Dasbor';
